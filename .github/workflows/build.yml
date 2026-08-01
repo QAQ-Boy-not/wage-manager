@@ -34,12 +34,12 @@ jobs:
           distribution: 'temurin'
 
       # ===== 步骤 3：装 Gradle =====
+      # 必须固定 Gradle 版本到 8.x，不能用默认最新（默认会下 9.x，跟我们的 AGP 8.1.4 不兼容）
       - name: 🔧 设置 Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          # 缓存 Gradle 用户目录，下次构建更快
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
-          gradle-home-cache-cleanup: true
+          gradle-version: '8.4'  # 跟 AGP 8.1.4 匹配
+          cache-disabled: false  # 启用缓存
 
       # ===== 步骤 4：接受 Android SDK 许可 =====
       # Android SDK 首次使用需要同意 license，否则构建会失败
