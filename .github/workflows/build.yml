@@ -52,8 +52,9 @@ jobs:
 
       # ===== 步骤 5：构建 Debug APK =====
       # 这是最关键的一步：调用 Gradle 编译 APK
+      # 用 gradle 命令而不是 ./gradlew（避免仓库里没有 wrapper）
       - name: 🏗️ 构建 Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon
 
       # ===== 步骤 6：把 APK 上传为可下载的产物 =====
       - name: 📤 上传 APK 产物
