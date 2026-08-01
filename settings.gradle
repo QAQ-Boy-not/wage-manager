@@ -1,0 +1,19 @@
+// settings.gradle - 工程入口配置
+// 作用：定义项目名、模块、仓库地址
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "WageManager"
+include ':app'

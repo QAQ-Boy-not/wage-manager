@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 字符串资源：所有用户可见的文字都放这里，便于翻译 -->
+<resources>
+    <string name="app_name">零活工人</string>
+</resources>

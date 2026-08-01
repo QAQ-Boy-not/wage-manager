@@ -1,0 +1,77 @@
+# GitHub Actions 工作流：自动构建 Android APK
+#
+# 触发时机：
+#   1. 推送到 main 分支时
+#   2. 手动在网页点击 "Run workflow"
+#
+# 流程：
+#   装 JDK → 装 Android SDK → 编译 APK → 上传产物
+
+name: Build Android APK
+
+on:
+  # 推送到 main 分支时触发
+  push:
+    branches: [ main ]
+  # 允许手动触发（网页上点按钮跑）
+  workflow_dispatch:
+
+jobs:
+  build:
+    # 用 Ubuntu 最新版（云端免费）
+    runs-on: ubuntu-latest
+
+    steps:
+      # ===== 步骤 1：下载您的代码 =====
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      # ===== 步骤 2：装 Java 17 =====
+      - name: ☕ 设置 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # ===== 步骤 3：装 Gradle =====
+      - name: 🔧 设置 Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          # 缓存 Gradle 用户目录，下次构建更快
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          gradle-home-cache-cleanup: true
+
+      # ===== 步骤 4：接受 Android SDK 许可 =====
+      # Android SDK 首次使用需要同意 license，否则构建会失败
+      - name: 📜 接受 Android SDK 许可
+        run: |
+          mkdir -p $ANDROID_HOME/licenses
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_HOME/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $ANDROID_HOME/licenses/android-sdk-license
+
+      # ===== 步骤 5：构建 Debug APK =====
+      # 这是最关键的一步：调用 Gradle 编译 APK
+      - name: 🏗️ 构建 Debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      # ===== 步骤 6：把 APK 上传为可下载的产物 =====
+      - name: 📤 上传 APK 产物
+        uses: actions/upload-artifact@v4
+        with:
+          # 产物名字（在下载页面显示）
+          name: app-debug
+          # APK 路径（Gradle 生成的）
+          path: app/build/outputs/apk/debug/app-debug.apk
+          # 保留 30 天（之后自动删除）
+          retention-days: 30
+
+      # ===== 步骤 7：构建结果摘要 =====
+      - name: 📋 打印构建结果
+        if: success()
+        run: |
+          echo "================================="
+          echo "🎉 构建成功！"
+          echo "📦 产物：app-debug"
+          echo "📥 在 Actions 页面下载 Artifacts"
+          echo "================================="

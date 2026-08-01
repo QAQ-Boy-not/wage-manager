@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 主题资源：定义 App 的外观样式 -->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- 基础主题：继承系统的 Material Light 主题 -->
+    <style name="Theme.WageManager" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
