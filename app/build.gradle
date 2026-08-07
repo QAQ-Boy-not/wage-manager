@@ -4,6 +4,7 @@
 plugins {
     id 'com.android.application'        // Android 应用插件
     id 'org.jetbrains.kotlin.android'   // Kotlin 插件
+    id 'com.google.devtools.ksp'        // Room 注解处理
 }
 
 android {
@@ -23,9 +24,9 @@ android {
         // 目标 Android 版本（API 34 = Android 14）
         targetSdk 34
 
-        // 版本号
-        versionCode 1
-        versionName "1.0"
+        // 版本号：M1 里程碑
+        versionCode 2
+        versionName "1.1.0-m1"
     }
 
     // 构建类型：debug（调试）和 release（发布）
@@ -42,6 +43,8 @@ android {
 
     // Java 编译选项
     compileOptions {
+        // 启用核心库脱糖：让 minSdk 24 也能用 java.time API
+        coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
@@ -69,12 +72,20 @@ android {
     }
 }
 
+// Room 注解处理器配置：把 schema JSON 输出到项目里（用于版本迁移与 CI 校验）
+ksp {
+    arg('room.schemaLocation', "$projectDir/schemas")
+    arg('room.incremental', 'true')
+}
+
 dependencies {
     // Android 核心库
     implementation 'androidx.core:core-ktx:1.12.0'
 
-    // Lifecycle 库（管理 Activity 生命周期）
+    // Lifecycle 库（管理 Activity / ViewModel 生命周期）
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.6.2'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2'
 
     // Activity Compose 集成（用 Compose 写 Activity）
     implementation 'androidx.activity:activity-compose:1.8.1'
@@ -89,4 +100,16 @@ dependencies {
 
     // Material Design 3（Google 设计规范）
     implementation 'androidx.compose.material3:material3'
+
+    // Room 数据库（KSP 注解处理）
+    def roomVersion = '2.6.1'
+    implementation "androidx.room:room-runtime:$roomVersion"
+    implementation "androidx.room:room-ktx:$roomVersion"
+    ksp "androidx.room:room-compiler:$roomVersion"
+
+    // Kotlin 协程（Room suspend 函数、ViewModel scope）
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    // 核心库脱糖：让 minSdk 24 也能用 java.time API
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 }

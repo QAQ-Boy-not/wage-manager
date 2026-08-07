@@ -2,16 +2,20 @@
 #
 # 触发时机：
 #   1. 推送到 main 分支时
-#   2. 手动在网页点击 "Run workflow"
+#   2. 创建/更新合并到 main 的 PR（合并前验证）
+#   3. 手动在网页点击 "Run workflow"
 #
 # 流程：
-#   装 JDK → 装 Android SDK → 编译 APK → 上传产物
+#   装 JDK → 装 Gradle → 跑纯 Java 业务规则 javac 测试 → 编译 APK → 上传 APK + Room Schema 产物
 
 name: Build Android APK
 
 on:
   # 推送到 main 分支时触发
   push:
+    branches: [ main ]
+  # PR 合并前验证（防止坏代码合入 main）
+  pull_request:
     branches: [ main ]
   # 允许手动触发（网页上点按钮跑）
   workflow_dispatch:
@@ -22,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ===== 步骤 1：下载您的代码 =====
+      # ===== 步骤 1：下载代码 =====
       - name: 📥 检出代码
         uses: actions/checkout@v4
 
@@ -41,7 +45,22 @@ jobs:
           gradle-version: '8.4'  # 跟 AGP 8.1.4 匹配
           cache-disabled: false  # 启用缓存
 
-      # ===== 步骤 4：接受 Android SDK 许可 =====
+      # ===== 步骤 4：测试纯 Java 业务规则 =====
+      # 在 Android 编译前先用 javac 验证 util/*.java 的业务逻辑
+      # 这步不需要 Android SDK，能快速反馈业务规则的回归
+      - name: 🧪 测试纯 Java 业务规则
+        run: |
+          OUT="$RUNNER_TEMP/wage-javac-test"
+          mkdir -p "$OUT"
+          javac -encoding UTF-8 -d "$OUT" \
+            app/src/main/java/com/example/wagemanager/util/MoneyUtils.java \
+            app/src/main/java/com/example/wagemanager/util/WageCalculator.java \
+            app/src/main/java/com/example/wagemanager/util/DateRules.java \
+            app/src/main/java/com/example/wagemanager/util/ManualWorkerId.java \
+            app/src/testJavac/java/com/example/wagemanager/util/WageBusinessRulesJavacTest.java
+          java -cp "$OUT" com.example.wagemanager.util.WageBusinessRulesJavacTest
+
+      # ===== 步骤 5：接受 Android SDK 许可 =====
       # Android SDK 首次使用需要同意 license，否则构建会失败
       - name: 📜 接受 Android SDK 许可
         run: |
@@ -50,13 +69,12 @@ jobs:
           echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $ANDROID_HOME/licenses/android-sdk-license
 
-      # ===== 步骤 5：构建 Debug APK =====
-      # 这是最关键的一步：调用 Gradle 编译 APK
+      # ===== 步骤 6：构建 Debug APK =====
       # 用 gradle 命令而不是 ./gradlew（避免仓库里没有 wrapper）
       - name: 🏗️ 构建 Debug APK
-        run: gradle assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon --stacktrace
 
-      # ===== 步骤 6：把 APK 上传为可下载的产物 =====
+      # ===== 步骤 7：把 APK 上传为可下载的产物 =====
       - name: 📤 上传 APK 产物
         uses: actions/upload-artifact@v4
         with:
@@ -67,12 +85,25 @@ jobs:
           # 保留 30 天（之后自动删除）
           retention-days: 30
 
-      # ===== 步骤 7：构建结果摘要 =====
+      # ===== 步骤 8：上传 Room Schema =====
+      # Room 会生成 schema/1.json，记录当前数据库结构
+      # 第一次跑会把 schema 1 生成出来，开发者下载后提交到仓库
+      # 后续跑用来验证 schema 是否被意外修改
+      - name: 📤 上传 Room Schema 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-schema
+          path: app/schemas
+          if-no-files-found: error
+          retention-days: 30
+
+      # ===== 步骤 9：构建结果摘要 =====
       - name: 📋 打印构建结果
         if: success()
         run: |
           echo "================================="
           echo "🎉 构建成功！"
-          echo "📦 产物：app-debug"
+          echo "📦 产物 1：app-debug（APK）"
+          echo "� 产物 2：room-schema（数据库 Schema）"
           echo "📥 在 Actions 页面下载 Artifacts"
           echo "================================="
