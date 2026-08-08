@@ -25,10 +25,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     exportSchema = true
 )
 @TypeConverters(DateTimeConverters::class)
-internal abstract class AppDatabase : RoomDatabase() {
+abstract class AppDatabase : RoomDatabase() {
 
-    abstract fun workerDao(): WorkerDao
-    abstract fun wageRecordDao(): WageRecordDao
+    // AppDatabase 是 public（被 Application / Repository 持有）
+    // Dao 自身和 dao() 方法仍是 internal（同 module 内 Repository 才能调）
+    // 这样既能让外部类型正常传递，又隐藏 Dao 实现细节
+    internal abstract fun workerDao(): WorkerDao
+    internal abstract fun wageRecordDao(): WageRecordDao
 
     companion object {
         private const val DB_NAME = "wage_manager.db"

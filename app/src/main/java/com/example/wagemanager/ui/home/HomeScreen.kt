@@ -30,7 +30,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -104,7 +104,7 @@ fun HomeScreen(
                 recordCount = state.recordCount
             )
             Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
+            Divider()
             Spacer(modifier = Modifier.height(8.dp))
 
             // ===== 工资记录列表 =====
