@@ -7,7 +7,10 @@
 ## 📋 项目概述
 
 **项目名**：零活工人工资管理 App  
-**当前阶段**：✅ Hello CI 跑通 → 📍 **准备开始正式工资管理功能**
+**当前阶段**：✅ Hello CI 跑通 → 📍 **需求冻结为 V1.1，准备开始正式工资管理功能**
+
+**现行需求基线**：`docs/requirements_V1.1.txt`（2026-08-07 决策版，强制白名单二维码）
+**历史需求存档**：`docs/requirements_V1.0.txt`（仅供 diff 参考，不要再开发）
 
 **一句话定位**：帮助带班妈妈（保洁零活）通过扫码快速登记当日出工人员及浮动工资，并标记支付状态，杜绝漏付、错付。
 
@@ -276,14 +279,23 @@ AI 看到这份文档后，请：
 
 - 项目仓库：https://github.com/QAQ-Boy-not/wage-manager
 - CI 状态：https://github.com/QAQ-Boy-not/wage-manager/actions
-- 需求文档：`/home/wangjing/code/app/零活工人工资管理App.txt`
+- 需求文档（V1.1 决策版）：`docs/requirements_V1.1.txt`
+- 需求文档（V1.0 存档）：`docs/requirements_V1.0.txt`
 - 开发规范：`/home/wangjing/code/app/wage-manager/DEVELOPMENT_GUIDELINES.md`
 - Hello CI Demo（已废弃）：`/home/wangjing/code/app/demo/`
 
 ---
 
-**文档版本**：v2.0  
-**最后更新**：2026-08-02  
+**文档版本**：v2.1  
+**最后更新**：2026-08-07
+
+### v2.1 (2026-08-07)
+
+- 需求基线切换为 `docs/requirements_V1.1.txt`（决策版）
+- V1.0 文档归档到 `docs/requirements_V1.0.txt`
+- 加入"V1 强制结论清单"提醒（白名单二维码 / INTEGER 分 / 撤销付款 等）
+
+### v2.0 (2026-08-02)  
 **作者**：QAQ-Boy-not
 
 ---

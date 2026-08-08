@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 夜间模式颜色：M1 暂保持与日间一致（高对比度优先于系统暗色主题，
+     避免老年用户夜间低对比度看不清）。M3+ 可考虑做真正的暗色主题。 -->
+<resources>
+    <color name="wage_background">#FFFFFFFF</color>
+    <color name="wage_text_primary">#FF000000</color>
+    <color name="wage_action_blue">#FF1565C0</color>
+    <color name="wage_unpaid_red">#FFC62828</color>
+    <color name="wage_paid_green">#FF2E7D32</color>
+    <color name="wage_disabled_gray">#FF6D6D6D</color>
+    <color name="wage_card_background">#FFF5F5F5</color>
+</resources>

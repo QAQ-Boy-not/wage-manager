@@ -2,9 +2,10 @@
 // 作用：定义项目名、模块、仓库地址
 pluginManagement {
     repositories {
+        // 只用官方仓库（google() 国内可访问）
         google()
-        mavenCentral()
         gradlePluginPortal()
+        mavenCentral()
     }
 }
 dependencyResolutionManagement {

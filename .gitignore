@@ -1,23 +1,36 @@
 # Gradle 相关
-.gradle/                  # Gradle 缓存目录
-build/                    # 构建产物
-**/build/                 # 所有模块的 build 目录
-local.properties          # 本地配置（包含 SDK 路径，不要提交）
+# Gradle 缓存目录
+.gradle/
+# 构建产物
+build/
+# 所有模块的 build 目录
+**/build/
+# 本地配置（包含 SDK 路径，不要提交）
+local.properties
 
 # IDE 相关
-.idea/                    # IntelliJ IDEA 配置
-*.iml                     # IDEA 模块文件
-.vscode/                  # VSCode 配置
-.fleet/                   # JetBrains Fleet 配置
-.cxx/                     # C++ 构建缓存
+# IntelliJ IDEA 配置
+.idea/
+# IDEA 模块文件
+*.iml
+# VSCode 配置
+.vscode/
+# JetBrains Fleet 配置
+.fleet/
+# C++ 构建缓存
+.cxx/
 
 # Android Studio
-captures/                 # 性能分析数据
-.externalNativeBuild/     # 原生构建缓存
+# 性能分析数据
+captures/
+# 原生构建缓存
+.externalNativeBuild/
 
 # 编译产物（不要提交）
-*.apk                     # APK 文件
-*.aab                     # AAB 文件
+# APK 文件
+*.apk
+# AAB 文件
+*.aab
 *.ap_
 *.dex
 *.class
@@ -29,9 +42,12 @@ captures/                 # 性能分析数据
 *.swp
 
 # 操作系统
-.DS_Store                 # macOS
-Thumbs.db                 # Windows
-desktop.ini               # Windows
+# macOS
+.DS_Store
+# Windows
+Thumbs.db
+desktop.ini
 
 # 其他
-*.hprof                   # 性能分析文件
+# 性能分析文件
+*.hprof

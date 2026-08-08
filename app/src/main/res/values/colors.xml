@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 颜色资源：集中管理颜色值 -->
+<!-- 颜色资源：语义化命名（wage_* 前缀），便于跨主题统一引用 -->
 <resources>
+    <!-- 基础色（保留兼容） -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- 工资管理 App 语义色 -->
+    <!-- 背景：纯白，高对比度，老年用户友好 -->
+    <color name="wage_background">#FFFFFFFF</color>
+    <!-- 主文字：纯黑 -->
+    <color name="wage_text_primary">#FF000000</color>
+    <!-- 主操作色：深蓝（按钮、链接） -->
+    <color name="wage_action_blue">#FF1565C0</color>
+    <!-- 未付状态：深红 -->
+    <color name="wage_unpaid_red">#FFC62828</color>
+    <!-- 已付状态：深绿 -->
+    <color name="wage_paid_green">#FF2E7D32</color>
+    <!-- 禁用态：深灰 -->
+    <color name="wage_disabled_gray">#FF6D6D6D</color>
+    <!-- 卡片背景：极浅灰，与白色背景区分但不刺眼 -->
+    <color name="wage_card_background">#FFF5F5F5</color>
 </resources>
