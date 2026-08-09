@@ -76,6 +76,25 @@ class WageRepository(
     /** 一次性查所有工人（V1.3 批量添加 + 工人选择器用） */
     suspend fun listAllWorkers(): List<Worker> = workerDao.findAll()
 
+    /** 新增工人（V1.3 管理页用，V1.3 强制改名：≥1 同名抛异常） */
+    suspend fun insertWorker(name: String, workDate: LocalDate): Worker {
+        val trimmed = name.trim()
+        require(trimmed.isNotEmpty()) { "工人姓名不能为空" }
+        val existing = workerDao.findByExactName(trimmed)
+        require(existing.isEmpty()) { "已存在同名工人「$trimmed」" }
+
+        val newWorker = Worker(
+            id = ManualWorkerId.create(),
+            name = trimmed,
+            qrRaw = null,
+            qrcodePath = null,
+            isManual = true,
+            firstWorkDate = workDate
+        )
+        workerDao.insert(newWorker)
+        return newWorker
+    }
+
     // ============== V1.3：同名处理（强制改名） ==============
 
     /**

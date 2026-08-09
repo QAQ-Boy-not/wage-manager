@@ -38,7 +38,9 @@ data class BillItem(
     val workDate: LocalDate,
     val isPaid: Boolean,
     val paidTime: LocalDateTime?,
-    val createdAt: LocalDateTime
+    val createdAt: LocalDateTime,
+    val worksiteName: String? = null,   // V1.3 新增
+    val notes: String? = null           // V1.3 新增
 )
 
 /**
@@ -118,7 +120,9 @@ class WorkerDetailViewModel(
                 workDate = record.record.workDate,
                 isPaid = record.record.isPaid,
                 paidTime = record.record.paidTime,
-                createdAt = record.record.createTime
+                createdAt = record.record.createTime,
+                worksiteName = record.worksiteName,
+                notes = record.record.notes
             )
         }
         val unpaid = items.filter { !it.isPaid }

@@ -422,6 +422,22 @@ private fun BillCard(
                     fontSize = 16.sp,
                     color = colorResource(R.color.wage_text_primary)
                 )
+                // V1.3 新增：工区名
+                if (!bill.worksiteName.isNullOrBlank()) {
+                    Text(
+                        text = "📍 ${bill.worksiteName}",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                }
+                // V1.3 新增：备注
+                if (!bill.notes.isNullOrBlank()) {
+                    Text(
+                        text = bill.notes,
+                        fontSize = 14.sp,
+                        color = colorResource(R.color.wage_text_primary)
+                    )
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = MoneyUtils.formatCent(bill.wageCent) + " 元",
