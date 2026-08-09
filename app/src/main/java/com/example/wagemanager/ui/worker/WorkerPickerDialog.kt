@@ -68,6 +68,7 @@ data class WorkerPickItem(
  * @param allWorkers 所有工人列表（V1.3 按 first_work_date 升序）
  * @param initiallySelected 初始已选（编辑场景用，新建场景传空）
  * @param onConfirm 确认按钮回调（返回 workerId 列表）
+ * @param onCreateNewWorker 新建工人回调（BatchAddBillSheet 调 Repository）
  * @param onDismiss 关闭回调
  */
 @Composable
@@ -75,10 +76,12 @@ fun WorkerPickerDialog(
     allWorkers: List<WorkerPickItem>,
     initiallySelected: Set<String> = emptySet(),
     onConfirm: (List<String>) -> Unit,
+    onCreateNewWorker: ((String) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     var selected by remember { mutableStateOf(initiallySelected) }
     var searchQuery by remember { mutableStateOf("") }
+    var showCreateWorkerDialog by remember { mutableStateOf(false) }
 
     // 搜索过滤（按姓名 contains）
     val filtered = remember(allWorkers, searchQuery) {
@@ -120,20 +123,33 @@ fun WorkerPickerDialog(
                     }
                 }
 
-                // ===== 搜索框 =====
-                TextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("搜索姓名...", fontSize = 18.sp) },
+                // ===== 搜索框 + + 新建工人 按钮 =====
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("搜索姓名...", fontSize = 18.sp) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
                     )
-                )
+                    if (onCreateNewWorker != null) {
+                        Spacer(modifier = Modifier.size(8.dp))
+                        androidx.compose.material3.FilledTonalButton(
+                            onClick = { showCreateWorkerDialog = true }
+                        ) {
+                            Text("➕ 新建", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -300,4 +316,62 @@ private fun WorkerPickerRow(
             }
         }
     }
+
+    // ===== Bug17：新建工人对话框 =====
+    if (showCreateWorkerDialog && onCreateNewWorker != null) {
+        CreateWorkerDialog(
+            onConfirm = { name ->
+                onCreateNewWorker(name)
+                showCreateWorkerDialog = false
+            },
+            onDismiss = { showCreateWorkerDialog = false }
+        )
+    }
+}
+
+/**
+ * 新建工人对话框（Bug17）
+ */
+@Composable
+private fun CreateWorkerDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("新建工人", fontSize = 22.sp, fontWeight = FontWeight.Bold) },
+        text = {
+            androidx.compose.foundation.layout.Column {
+                androidx.compose.material3.OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it; error = null },
+                    label = { Text("工人姓名") },
+                    singleLine = true,
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                )
+                if (error != null) {
+                    androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.unit.dp(4f))
+                    Text(error!!, fontSize = 14.sp, color = androidx.compose.material3.MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                if (name.isBlank()) {
+                    error = "姓名不能为空"
+                    return@TextButton
+                }
+                onConfirm(name.trim())
+            }) {
+                Text("✅ 保存", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("取消", fontSize = 18.sp)
+            }
+        }
+    )
 }

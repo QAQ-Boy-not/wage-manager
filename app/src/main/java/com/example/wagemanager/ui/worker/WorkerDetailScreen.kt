@@ -14,7 +14,7 @@
 package com.example.wagemanager.ui.worker
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,6 +67,7 @@ fun WorkerDetailScreen(
     onBack: () -> Unit
 ) {
     val viewModel: WorkerDetailViewModel = viewModel(
+        key = "WorkerDetailVM-$workerId",  // 不同 workerId 创建不同 VM 实例（M2.1 Bug10 修复）
         factory = WorkerDetailViewModel.factory(repository, workerId)
     )
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -109,7 +110,7 @@ fun WorkerDetailScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 20.dp)
+                            .padding(horizontal = 16.dp)
                     ) {
                         // ===== 工人信息卡 =====
                         WorkerInfoCard(
@@ -122,81 +123,70 @@ fun WorkerDetailScreen(
                             paidCount = state.paidBills.size,
                             paidCent = state.paidCent
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        // ===== 账单列表 =====
+                        // ===== Bug19：Tab 切换（未付 / 已付）=====
+                        DetailTabRow(
+                            isPaidTab = state.isPaidTab,
+                            unpaidCount = state.unpaidBills.size,
+                            unpaidCent = state.unpaidCent,
+                            paidCount = state.paidBills.size,
+                            paidCent = state.paidCent,
+                            onTabChange = viewModel::onTabChange
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // ===== 账单列表（按当前 tab 过滤）=====
+                        val visibleBills = state.visibleBills()
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            if (state.unpaidBills.isNotEmpty()) {
-                                item {
-                                    BillGroupHeader(
-                                        title = stringResource(
-                                            R.string.detail_group_unpaid,
-                                            state.unpaidBills.size,
-                                            MoneyUtils.formatCent(state.unpaidCent)
-                                        ),
-                                        color = colorResource(R.color.wage_unpaid_red)
-                                    )
-                                }
-                                items(state.unpaidBills, key = { it.recordId }) { bill ->
-                                    BillCard(
-                                        bill = bill,
-                                        workerName = state.workerName,
-                                        onMarkPaidClick = {
-                                            viewModel.setPendingAction(
-                                                PendingConfirmAction.MarkPaid(
-                                                    recordId = bill.recordId,
-                                                    workerName = state.workerName,
-                                                    wageCent = bill.wageCent
-                                                )
-                                            )
-                                        },
-                                        onLongClick = {
-                                            viewModel.onActionMenuShow(bill.recordId)
-                                        }
-                                    )
-                                }
-                            }
-
-                            if (state.paidBills.isNotEmpty()) {
-                                item {
-                                    BillGroupHeader(
-                                        title = stringResource(
-                                            R.string.detail_group_paid,
-                                            state.paidBills.size,
-                                            MoneyUtils.formatCent(state.paidCent)
-                                        ),
-                                        color = colorResource(R.color.wage_paid_green)
-                                    )
-                                }
-                                items(state.paidBills, key = { it.recordId }) { bill ->
-                                    BillCard(
-                                        bill = bill,
-                                        workerName = state.workerName,
-                                        onMarkPaidClick = null,
-                                        onLongClick = {
-                                            viewModel.onActionMenuShow(bill.recordId)
-                                        }
-                                    )
-                                }
-                            }
-
-                            if (state.unpaidBills.isEmpty() && state.paidBills.isEmpty()) {
+                            if (visibleBills.isEmpty()) {
                                 item {
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(top = 48.dp),
+                                            .padding(top = 32.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = stringResource(R.string.detail_empty_bills),
+                                            text = if (state.isPaidTab) "暂无已付账单" else "暂无未付账单",
                                             fontSize = 18.sp,
                                             color = Color.Gray
                                         )
                                     }
+                                }
+                            } else {
+                                items(visibleBills, key = { it.recordId }) { bill ->
+                                    BillCard(
+                                        bill = bill,
+                                        workerName = state.workerName,
+                                        onMarkPaidClick = if (!bill.isPaid) {
+                                            {
+                                                viewModel.setPendingAction(
+                                                    PendingConfirmAction.MarkPaid(
+                                                        recordId = bill.recordId,
+                                                        workerName = state.workerName,
+                                                        wageCent = bill.wageCent
+                                                    )
+                                                )
+                                            }
+                                        } else null,
+                                        onRevokeClick = if (bill.isPaid) {
+                                            {
+                                                viewModel.setPendingAction(
+                                                    PendingConfirmAction.RevokePayment(
+                                                        recordId = bill.recordId,
+                                                        workerName = state.workerName
+                                                    )
+                                                )
+                                            }
+                                        } else null,
+                                        onMenuClick = {
+                                            viewModel.onActionMenuShow(bill.recordId)
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -224,14 +214,17 @@ fun WorkerDetailScreen(
         }
     }
 
-    // ===== 添加 / 编辑账单 BottomSheet =====
+    // ===== 添加 / 编辑账单 BottomSheet（Bug 9 + Bug14 修复）=====
     if (state.control.isRegisterSheetVisible) {
         val editingBill = state.control.editingBillId?.let { id ->
             state.findBillById(id)
         }
+        // Bug 14：传 workerId 让 RegisterBillSheet 走 addBillToWorker 路径
+        // 跳过同名检查（工人已经确定，不该触发"重复名称"）
         RegisterBillSheet(
             repository = repository,
-            initialName = editingBill?.let { state.workerName } ?: state.workerName.takeIf { it.isNotEmpty() },
+            workerId = workerId,  // ← 详情页上下文传入
+            initialName = state.workerName.takeIf { it.isNotEmpty() },
             editingBill = editingBill,
             editingBillId = state.control.editingBillId,
             onDismiss = viewModel::onAddBillDismiss
@@ -302,10 +295,19 @@ private fun DetailTopBar(workerName: String, onBack: () -> Unit) {
         }
         Spacer(modifier = Modifier.size(8.dp))
         Text(
-            text = if (workerName.isEmpty()) "👷" else "👤 $workerName",
-            fontSize = 22.sp,
+            text = "📋 账单详情",
+            fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             color = colorResource(R.color.wage_text_primary)
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        if (workerName.isNotEmpty()) {
+            Text(
+                text = "👤 $workerName",
+                fontSize = 16.sp,
+                color = colorResource(R.color.wage_text_primary)
+            )
+        }
         )
     }
 }
@@ -326,48 +328,43 @@ private fun WorkerInfoCard(
         colors = CardDefaults.cardColors(
             containerColor = colorResource(R.color.wage_card_background)
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(10.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(12.dp)
         ) {
             Text(
                 text = if (name.isEmpty()) "👷" else "👤 $name",
-                fontSize = 24.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = colorResource(R.color.wage_text_primary)
             )
             if (firstWorkDate != null) {
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = stringResource(
                         R.string.detail_first_work_date,
                         DateRules.formatChineseDate(firstWorkDate)
                     ),
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     color = Color.Gray
                 )
             }
-            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = stringResource(R.string.stats_total_label, totalCount) + " / " + MoneyUtils.formatCent(totalCent) + " 元",
-                fontSize = 18.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = colorResource(R.color.wage_text_primary)
             )
-            Spacer(modifier = Modifier.height(6.dp))
-            // 分行显示未付 / 已付（M1.1 反馈 1 修复）
             Text(
                 text = "🔴 " + stringResource(R.string.stats_unpaid_count, unpaidCount) + " / " + MoneyUtils.formatCent(unpaidCent) + " 元",
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 color = colorResource(R.color.wage_unpaid_red)
             )
-            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "🟢 " + stringResource(R.string.stats_paid_count, paidCount) + " / " + MoneyUtils.formatCent(paidCent) + " 元",
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 color = colorResource(R.color.wage_paid_green)
             )
         }
@@ -378,33 +375,93 @@ private fun WorkerInfoCard(
 private fun BillGroupHeader(title: String, color: Color) {
     Text(
         text = title,
-        fontSize = 20.sp,
+        fontSize = 18.sp,
         fontWeight = FontWeight.Bold,
         color = color,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 4.dp)
     )
 }
 
 /**
- * 账单卡片（未付显示"标记已付"按钮；已付显示支付时间；长按弹操作菜单）
+ * Bug19：账单详情 Tab 切换（未付 / 已付）
+ */
+@Composable
+private fun DetailTabRow(
+    isPaidTab: Boolean,
+    unpaidCount: Int,
+    unpaidCent: Long,
+    paidCount: Int,
+    paidCent: Long,
+    onTabChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        TabPill(
+            modifier = Modifier.weight(1f),
+            label = "🔴 未付（$unpaidCount / ${MoneyUtils.formatCent(unpaidCent)} 元）",
+            isSelected = !isPaidTab,
+            selectedColor = colorResource(R.color.wage_unpaid_red),
+            onClick = { onTabChange(false) }
+        )
+        TabPill(
+            modifier = Modifier.weight(1f),
+            label = "🟢 已付（$paidCount / ${MoneyUtils.formatCent(paidCent)} 元）",
+            isSelected = isPaidTab,
+            selectedColor = colorResource(R.color.wage_paid_green),
+            onClick = { onTabChange(true) }
+        )
+    }
+}
+
+@Composable
+private fun TabPill(
+    modifier: Modifier,
+    label: String,
+    isSelected: Boolean,
+    selectedColor: Color,
+    onClick: () -> Unit
+) {
+    val background = if (isSelected) selectedColor else Color.White
+    val textColor = if (isSelected) Color.White else colorResource(R.color.wage_disabled_gray)
+    Row(
+        modifier = modifier
+            .height(48.dp)
+            .background(color = background, shape = RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = textColor
+        )
+    }
+}
+
+/**
+ * 账单卡片（M2.1 修复长按 + Bug12 紧凑布局）
+ * - 未付账单：右上角 [✅ 标记已付] 按钮
+ * - 已付账单：右上角 [↩️ 撤销] 按钮
+ * - 右上角 "..." 图标按钮 → 弹操作菜单 [✏️ 编辑] [🗑️ 删除]（替代长按）
  */
 @Composable
 private fun BillCard(
     bill: BillItem,
     workerName: String,
     onMarkPaidClick: (() -> Unit)?,
-    onLongClick: () -> Unit
+    onRevokeClick: (() -> Unit)?,
+    onMenuClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .pointerInput(bill.recordId) {
-                detectTapGestures(
-                    onLongPress = { onLongClick() }
-                )
-            },
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = colorResource(R.color.wage_card_background)
         ),
@@ -413,35 +470,32 @@ private fun BillCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = DateRules.formatChineseDate(bill.workDate),
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     color = colorResource(R.color.wage_text_primary)
                 )
-                // V1.3 新增：工区名
                 if (!bill.worksiteName.isNullOrBlank()) {
                     Text(
                         text = "📍 ${bill.worksiteName}",
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         color = Color.Gray
                     )
                 }
-                // V1.3 新增：备注
                 if (!bill.notes.isNullOrBlank()) {
                     Text(
                         text = bill.notes,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         color = colorResource(R.color.wage_text_primary)
                     )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = MoneyUtils.formatCent(bill.wageCent) + " 元",
-                    fontSize = 22.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = colorResource(
                         if (bill.isPaid) R.color.wage_paid_green
@@ -449,39 +503,75 @@ private fun BillCard(
                     )
                 )
                 if (bill.isPaid && bill.paidTime != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = stringResource(
                             R.string.detail_paid_at,
                             PaymentRules.formatPaidTime(bill.paidTime)
                         ),
-                        fontSize = 14.sp,
+                        fontSize = 12.sp,
                         color = Color.Gray
                     )
                 }
             }
-            // 未付账单显示"标记已付"按钮
-            if (!bill.isPaid && onMarkPaidClick != null) {
+
+            // 右侧：操作按钮 + "..." 菜单按钮（垂直布局）
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // 标记已付 / 撤销 按钮
+                when {
+                    !bill.isPaid && onMarkPaidClick != null -> {
+                        ActionButton(
+                            text = stringResource(R.string.action_mark_paid),
+                            bgColor = colorResource(R.color.wage_paid_green),
+                            onClick = onMarkPaidClick
+                        )
+                    }
+                    bill.isPaid && onRevokeClick != null -> {
+                        ActionButton(
+                            text = stringResource(R.string.action_revoke_short),
+                            bgColor = colorResource(R.color.wage_unpaid_red),
+                            onClick = onRevokeClick
+                        )
+                    }
+                }
+
+                // "..." 菜单按钮（替代长按，老年用户可见）
                 Box(
                     modifier = Modifier
-                        .background(
-                            color = colorResource(R.color.wage_paid_green),
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .pointerInput(bill.recordId) {
-                            detectTapGestures(onTap = { onMarkPaidClick() })
-                        }
+                        .size(32.dp)
+                        .clickable(onClick = onMenuClick),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = stringResource(R.string.action_mark_paid),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        text = "⋮",
+                        fontSize = 24.sp,
+                        color = colorResource(R.color.wage_disabled_gray)
                     )
                 }
             }
         }
+    }
+}
+
+/**
+ * 操作按钮（标记已付 / 撤销）—— 通用样式
+ */
+@Composable
+private fun ActionButton(text: String, bgColor: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .background(color = bgColor, shape = RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
     }
 }
 

@@ -83,16 +83,26 @@ private data class BatchFormState(
 fun BatchAddBillSheet(
     repository: WageRepository,
     workDate: LocalDate,
+    /**
+     * Bug 4：详情页 FAB 用 preselectedWorkerIds 跳过选工人步骤
+     * （默认空 = 首页批量入口，需要手动选工人）
+     */
+    preselectedWorkerIds: Set<String> = emptySet(),
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
-    var form by remember { mutableStateOf(BatchFormState()) }
+    var form by remember {
+        mutableStateOf(
+            BatchFormState(
+                selectedWorkerIds = preselectedWorkerIds
+            )
+        )
+    }
     var allWorkers by remember { mutableStateOf<List<WorkerPickItem>>(emptyList()) }
     var worksites by remember { mutableStateOf<List<Worksite>>(emptyList()) }
-    var allWorkersLoaded by remember { mutableStateOf(false) }
 
     // 加载所有工人 + 工区
     LaunchedEffect(Unit) {
@@ -100,7 +110,6 @@ fun BatchAddBillSheet(
         allWorkers = repository.listAllWorkers().map {
             WorkerPickItem(it.id, it.name, it.firstWorkDate)
         }
-        allWorkersLoaded = true
     }
     LaunchedEffect(Unit) {
         repository.observeWorksites().collect { wsList ->
@@ -117,14 +126,14 @@ fun BatchAddBillSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
             // 标题
             Text(
                 text = stringResource(R.string.batch_add_title),
                 style = MaterialTheme.typography.headlineMedium
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 反馈条
             val successMsg = form.successMessage
@@ -213,7 +222,7 @@ fun BatchAddBillSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 选择工人按钮
+            // 选择工人按钮（Bug 4：详情页预选时不弹 picker，只显示固定文本）
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -221,7 +230,13 @@ fun BatchAddBillSheet(
                         color = colorResource(R.color.wage_card_background),
                         shape = RoundedCornerShape(8.dp)
                     )
-                    .clickable { form = form.copy(showWorkerPicker = true) }
+                    .clickable(
+                        enabled = preselectedWorkerIds.isEmpty()
+                    ) {
+                        if (preselectedWorkerIds.isEmpty()) {
+                            form = form.copy(showWorkerPicker = true)
+                        }
+                    }
                     .padding(horizontal = 16.dp, vertical = 16.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -232,7 +247,10 @@ fun BatchAddBillSheet(
                     Spacer(modifier = Modifier.size(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = stringResource(R.string.batch_field_select_workers),
+                            text = if (preselectedWorkerIds.isNotEmpty())
+                                stringResource(R.string.batch_field_preselected_workers)
+                            else
+                                stringResource(R.string.batch_field_select_workers),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = colorResource(R.color.wage_text_primary)
@@ -272,16 +290,9 @@ fun BatchAddBillSheet(
                         currentForm = form,
                         onStateChange = { form = it },
                         onSuccess = { count ->
-                            // 清空表单准备下一批（保留日期 + 工区）
-                            form = BatchFormState(
-                                worksiteId = form.worksiteId,
-                                worksiteName = form.worksiteName,
-                                successMessage = "✅ 已批量添加 $count 笔账单"
-                            )
-                            scope.launch {
-                                kotlinx.coroutines.delay(2_000)
-                                form = form.copy(successMessage = null)
-                            }
+                            // Bug 8 修复：批量成功直接关闭 BottomSheet
+                            // （不再连续添加，避免误操作）
+                            onDismiss()
                         }
                     )
                 }
@@ -298,7 +309,7 @@ fun BatchAddBillSheet(
         }
     }
 
-    // ===== 工人选择器 =====
+    // ===== 工人选择器（Bug17：支持新建工人）=====
     if (form.showWorkerPicker) {
         WorkerPickerDialog(
             allWorkers = allWorkers,
@@ -311,11 +322,101 @@ fun BatchAddBillSheet(
                     showWorkerPicker = false
                 )
             },
+            onCreateNewWorker = { name ->
+                scope.launch {
+                    try {
+                        val newWorker = repository.insertWorker(name.trim(), LocalDate.now())
+                        val newItem = WorkerPickItem(newWorker.id, newWorker.name, newWorker.firstWorkDate)
+                        allWorkers = allWorkers + newItem
+                        form = form.copy(
+                            selectedWorkerIds = form.selectedWorkerIds + newWorker.id,
+                            selectedWorkerNames = form.selectedWorkerNames + newWorker.name
+                        )
+                    } catch (e: Exception) {
+                        // 同名抛 IllegalArgumentException（M2.1 强制改名）
+                    }
+                }
+            },
             onDismiss = { form = form.copy(showWorkerPicker = false) }
         )
     }
 
-    // ===== 加载数据 =====
+    // ===== Bug16：新建工区对话框 =====
+    if (form.showWorksitePicker) {
+        CreateWorksiteDialog(
+            onConfirm = { name, address ->
+                scope.launch {
+                    try {
+                        val newWorksite = repository.createWorksite(name, address)
+                        form = form.copy(
+                            worksiteId = newWorksite.id,
+                            worksiteName = newWorksite.name,
+                            showWorksitePicker = false
+                        )
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                }
+            },
+            onDismiss = { form = form.copy(showWorksitePicker = false) }
+        )
+    }
+}
+
+/**
+ * Bug16：新建工区对话框
+ */
+@Composable
+private fun CreateWorksiteDialog(
+    onConfirm: (name: String, address: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("新建工区", fontSize = 22.sp, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it; error = null },
+                    label = { Text("工区名称") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = address,
+                    onValueChange = { address = it; error = null },
+                    label = { Text("详细地址") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (error != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(error!!, fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (name.isBlank() || address.isBlank()) {
+                    error = "名称和地址都不能为空"
+                    return@TextButton
+                }
+                onConfirm(name.trim(), address.trim())
+            }) {
+                Text("✅ 保存", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", fontSize = 18.sp)
+            }
+        }
+    )
 }
 
 /**

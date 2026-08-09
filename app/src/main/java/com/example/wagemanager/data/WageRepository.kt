@@ -173,6 +173,46 @@ class WageRepository(
         }
     }
 
+    /**
+     * 给已存在工人添加账单（M2.1 Bug14 修复）
+     *
+     * 详情页"+ 添加账单"专用入口。绕过 registerBill 的同名检查，
+     * 直接 INSERT 一条 wage_records。
+     *
+     * @param workerId 必须已存在于 workers 表（详情页上下文保证）
+     */
+    suspend fun addBillToWorker(
+        workerId: String,
+        wageCent: Long,
+        workDate: LocalDate,
+        worksiteId: String? = null,
+        notes: String? = null
+    ): Long {
+        require(wageCent > 0) { "工资金额必须 > 0" }
+        require(DateRules.isWorkDateAllowed(workDate, LocalDate.now(clock))) {
+            "出工日期不能晚于今天"
+        }
+
+        // 校验 worker 存在（防御性，正常不会触发）
+        workerDao.findById(workerId)
+            ?: error("工人不存在：$workerId")
+
+        return database.withTransaction {
+            wageRecordDao.insert(
+                WageRecord(
+                    workerId = workerId,
+                    worksiteId = worksiteId,
+                    workDate = workDate,
+                    wageCent = wageCent,
+                    notes = notes,
+                    isPaid = false,
+                    paidTime = null,
+                    createTime = LocalDateTime.now(clock).withNano(0)
+                )
+            )
+        }
+    }
+
     // ============== V1.3：批量添加账单 ==============
 
     /**
@@ -224,6 +264,15 @@ class WageRepository(
         val paidTime = LocalDateTime.now(clock).withNano(0)
         val rows = wageRecordDao.markPaid(recordId, paidTime)
         return rows > 0
+    }
+
+    /**
+     * 批量标记指定日期所有未付账单（M2.1 Bug3）
+     * @return 标记成功的笔数
+     */
+    suspend fun markAllPaidByDate(workDate: LocalDate): Int {
+        val paidTime = LocalDateTime.now(clock).withNano(0)
+        return wageRecordDao.markAllPaidByDate(workDate, paidTime)
     }
 
     suspend fun revokePayment(recordId: Long): Boolean {

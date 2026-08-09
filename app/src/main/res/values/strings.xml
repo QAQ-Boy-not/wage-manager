@@ -20,6 +20,7 @@
     <string name="batch_field_wage">每人金额（元）</string>
     <string name="batch_field_notes">备注（可选，所有订单共用）</string>
     <string name="batch_field_select_workers">选择工人</string>
+    <string name="batch_field_preselected_workers">当前工人（已预选）</string>
     <string name="batch_field_no_worker">未选择工人</string>
     <string name="batch_action_submit">✅ 批量添加 %1$d 人</string>
 
@@ -37,8 +38,12 @@
     <!-- 账单操作 -->
     <string name="action_mark_paid">✅ 标记已付</string>
     <string name="action_revoke_payment">↩️ 撤销付款</string>
+    <string name="action_revoke_short">↩️ 撤销</string>
     <string name="action_delete_record">🗑️ 删除记录</string>
     <string name="action_edit_bill">✏️ 编辑账单</string>
+    <string name="action_mark_all_paid">✅ 全部标记已付（%1$d 笔 / %2$s 元）</string>
+    <string name="dialog_mark_all_paid_title">确认全部标记已付？</string>
+    <string name="dialog_mark_all_paid_message">今日所有未付账单（%1$d 笔 / %2$s 元）将一次性标记为已付</string>
 
     <!-- 操作菜单 / 二次确认对话框 -->
     <string name="dialog_action_menu_title">「%1$s」的操作</string>
