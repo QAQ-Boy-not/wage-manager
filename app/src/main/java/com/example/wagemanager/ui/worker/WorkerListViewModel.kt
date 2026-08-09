@@ -6,12 +6,6 @@
 // - 区分未付 / 已付 tab
 // - 计算全局汇总（今日未付总额 / 已付总额）
 // - 控制批量添加 BottomSheet 的显示
-//
-// V1.3 关键变更：
-// - 首页改为按工人聚合（不再是工人卡片列表）
-// - 工人卡片显示：👤 姓名 + 今日应付金额 / 笔数 + 订单缩略
-// - 状态分两组：未付 / 已付
-// - FAB ➕ 打开 BatchAddBillSheet（批量添加）
 
 package com.example.wagemanager.ui.worker
 
@@ -22,30 +16,14 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.wagemanager.data.WageRecordWithWorker
 import com.example.wagemanager.data.WageRepository
-import com.example.wagemanager.data.Worker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.LocalDate
-
-/**
- * UI 用的订单条目
- */
-data class BillItem(
-    val recordId: Long,
-    val workerId: String,
-    val wageCent: Long,
-    val workDate: LocalDate,
-    val worksiteName: String?,
-    val notes: String?,
-    val isPaid: Boolean,
-    val paidTime: java.time.LocalDateTime?
-)
 
 /**
  * 工人聚合卡（首页显示用）
@@ -75,10 +53,8 @@ data class WorkerListUiState(
     val totalUnpaidCount: Int = 0,
     val totalPaidCent: Long = 0L,
     val totalPaidCount: Int = 0,
-    val isBatchSheetVisible: Boolean = false,
-    val isLoading: Boolean = true
+    val isBatchSheetVisible: Boolean = false
 ) {
-    /** 当前 tab 应显示的工人组 */
     fun visibleGroups(): List<WorkerGroup> =
         workerGroups.filter { group ->
             if (isPaidTab) group.paidBills.isNotEmpty()
@@ -96,15 +72,6 @@ class WorkerListViewModel(
     private val _workDate = MutableStateFlow(LocalDate.now(clock))
     private val _isPaidTab = MutableStateFlow(false)
     private val _isBatchSheetVisible = MutableStateFlow(false)
-    private val _workers = MutableStateFlow<List<Worker>>(emptyList())
-
-    init {
-        // 加载所有工人（用于按工人聚合时关联名字）
-        viewModelScope.launch {
-            // 简化：直接查所有工人（工人数量预期 < 50）
-            _workers.value = emptyList() // 这里不需要了，由 wageRecord JOIN 出来
-        }
-    }
 
     val uiState: StateFlow<WorkerListUiState> = combine(
         _workDate.flatMapLatest { date -> repository.observeBillsByWorkDate(date) },
@@ -115,24 +82,28 @@ class WorkerListViewModel(
         val items = bills.map { record ->
             BillItem(
                 recordId = record.record.id,
-                workerId = record.record.workerId,
                 wageCent = record.record.wageCent,
                 workDate = record.record.workDate,
-                worksiteName = record.worksiteName,
-                notes = record.record.notes,
                 isPaid = record.record.isPaid,
-                paidTime = record.record.paidTime
+                paidTime = record.record.paidTime,
+                createdAt = record.record.createTime,
+                worksiteName = record.worksiteName,
+                notes = record.record.notes
             )
         }
 
         // 按 workerId 聚合
-        val groups = items.groupBy { it.workerId }
-            .map { (workerId, groupItems) ->
+        val groups = items.groupBy { it.recordId.toString().let { _ -> "" } }
+            .let { _ -> emptyList<WorkerGroup>() } // placeholder，下面替换
+
+        val groups2 = bills.groupBy { it.record.workerId }
+            .map { (workerId, groupBills) ->
+                val groupItems = groupBills.map { it.toBillItem() }
                 val unpaid = groupItems.filter { !it.isPaid }
                 val paid = groupItems.filter { it.isPaid }
                 WorkerGroup(
                     workerId = workerId,
-                    workerName = groupItems.first().workerName() ?: workerId.takeLast(4),
+                    workerName = groupBills.first().workerName,
                     unpaidCent = unpaid.sumOf { it.wageCent },
                     unpaidCount = unpaid.size,
                     paidCent = paid.sumOf { it.wageCent },
@@ -142,20 +113,18 @@ class WorkerListViewModel(
                 )
             }
 
-        // 全局汇总
         val totalUnpaid = items.filter { !it.isPaid }
         val totalPaid = items.filter { it.isPaid }
 
         WorkerListUiState(
             workDate = workDate,
             isPaidTab = isPaidTab,
-            workerGroups = groups,
+            workerGroups = groups2,
             totalUnpaidCent = totalUnpaid.sumOf { it.wageCent },
             totalUnpaidCount = totalUnpaid.size,
             totalPaidCent = totalPaid.sumOf { it.wageCent },
             totalPaidCount = totalPaid.size,
-            isBatchSheetVisible = isSheetVisible,
-            isLoading = false
+            isBatchSheetVisible = isSheetVisible
         )
     }.stateIn(
         scope = viewModelScope,
@@ -193,5 +162,14 @@ class WorkerListViewModel(
     }
 }
 
-/** WageRecordWithWorker → 工人姓名 */
-private fun WageRecordWithWorker.workerName(): String = workerName
+/** WageRecordWithWorker → BillItem 转换 */
+private fun WageRecordWithWorker.toBillItem(): BillItem = BillItem(
+    recordId = record.id,
+    wageCent = record.wageCent,
+    workDate = record.workDate,
+    isPaid = record.isPaid,
+    paidTime = record.paidTime,
+    createdAt = record.createTime,
+    worksiteName = worksiteName,
+    notes = record.notes
+)
