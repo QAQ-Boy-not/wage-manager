@@ -158,12 +158,13 @@ fun RegisterBillSheet(
             Spacer(modifier = Modifier.height(12.dp))
 
             // 反馈条
-            if (form.successMessage != null) {
+            val successMsg = form.successMessage
+            if (successMsg != null) {
                 Text(
-                    text = form.successMessage!!,
+                    text = successMsg,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (form.successMessage!!.startsWith("✅"))
+                    color = if (successMsg.startsWith("✅"))
                         colorResource(R.color.wage_paid_green)
                     else
                         colorResource(R.color.wage_unpaid_red),
