@@ -6,6 +6,11 @@
 //    工资写入失败时不会遗留"无工资记录的孤儿工人"
 // 3. Clock 通过构造注入，方便测试固定"今天"
 //
+// 同名处理（M2.1 简化）：
+// - UI 弹"切换到该工人 / 改名新建"对话框
+// - ViewModel 解析为 existingWorkerId: String?（null = 新建，非 null = 用已存在）
+// - Repository 不再做 sealed ManualWorkerChoice 复杂分支，直接传 existingWorkerId
+//
 // 注意：WageRepository.kt 不允许被 javac 测试（依赖 AndroidX），Room 部分由 CI 验证。
 
 package com.example.wagemanager.data
@@ -17,16 +22,6 @@ import kotlinx.coroutines.flow.Flow
 import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalDateTime
-
-/**
- * 手动录入时如何处理同名工人。
- * - CreateNew：始终新建一个 manual_xxx 工人
- * - Reuse：复用指定 id 的已有工人
- */
-sealed interface ManualWorkerChoice {
-    data object CreateNew : ManualWorkerChoice
-    data class Reuse(val workerId: String) : ManualWorkerChoice
-}
 
 class WageRepository(
     private val database: AppDatabase,
@@ -56,13 +51,16 @@ class WageRepository(
     /**
      * 手动登记工资。
      *
+     * 同名处理：
+     * - existingWorkerId == null：新建一个 manual_xxx 工人（首次登记 / 改名后无同名）
+     * - existingWorkerId != null：用已存在工人（同名字符串选了"切换到该工人"）
+     *
      * 业务规则：
      * - name trim 后不能为空
      * - wageCent 必须 > 0
      * - workDate 不能晚于今天
-     * - workerChoice=Reuse 时 workerId 必须存在
      *
-     * 事务保证：写工人和写工资是原子的，工资失败不会留孤儿工人。
+     * 事务保证：写工人和写工资是原子的。
      *
      * @return 新工资记录的自增 id
      */
@@ -70,7 +68,7 @@ class WageRepository(
         name: String,
         wageCent: Long,
         workDate: LocalDate,
-        workerChoice: ManualWorkerChoice
+        existingWorkerId: String? = null
     ): Long {
         val normalizedName = name.trim()
         require(normalizedName.isNotEmpty()) { "工人姓名不能为空" }
@@ -80,27 +78,24 @@ class WageRepository(
         }
 
         return database.withTransaction {
-            // 1. 决定 Worker：复用 or 新建
-            val worker = when (workerChoice) {
-                ManualWorkerChoice.CreateNew -> {
-                    val newWorker = Worker(
-                        id = ManualWorkerId.create(),
-                        name = normalizedName,
-                        qrRaw = null,
-                        qrcodePath = null,
-                        isManual = true,
-                        firstWorkDate = workDate
-                    )
-                    workerDao.insert(newWorker)
-                    newWorker
-                }
-                is ManualWorkerChoice.Reuse -> {
-                    workerDao.findById(workerChoice.workerId)
-                        ?: error("复用的工人不存在：${workerChoice.workerId}")
-                }
+            val worker = if (existingWorkerId != null) {
+                // 切换到已存在工人
+                workerDao.findById(existingWorkerId)
+                    ?: error("指定的工人不存在：$existingWorkerId")
+            } else {
+                // 新建工人
+                val newWorker = Worker(
+                    id = ManualWorkerId.create(),
+                    name = normalizedName,
+                    qrRaw = null,
+                    qrcodePath = null,
+                    isManual = true,
+                    firstWorkDate = workDate
+                )
+                workerDao.insert(newWorker)
+                newWorker
             }
 
-            // 2. 写工资记录
             wageRecordDao.insert(
                 WageRecord(
                     workerId = worker.id,
@@ -136,10 +131,9 @@ class WageRepository(
     }
 
     /**
-     * 编辑未付记录的姓名和工资。
-     * 业务规则：已付款记录不可改，仅可"撤销付款"。
+     * 编辑未付记录。
      *
-     * 命名复用：传 name 让调用方可以同名复用 / 新建同名工人，逻辑跟 registerManualWage 一致。
+     * 同名处理跟 registerManualWage 一致：existingWorkerId 决定是新建工人还是切换到已存在。
      *
      * @return true 表示成功（记录存在且原状态是未付）
      */
@@ -147,36 +141,31 @@ class WageRepository(
         recordId: Long,
         name: String,
         wageCent: Long,
-        workerChoice: ManualWorkerChoice
+        existingWorkerId: String? = null
     ): Boolean {
         val normalizedName = name.trim()
         require(normalizedName.isNotEmpty()) { "工人姓名不能为空" }
         require(wageCent > 0) { "工资金额必须 > 0" }
 
         return database.withTransaction {
-            // 1. 决定 Worker：复用 or 新建
-            val worker = when (workerChoice) {
-                ManualWorkerChoice.CreateNew -> {
-                    val existing = wageRecordDao.findById(recordId)
-                    val workDate = existing?.record?.workDate ?: LocalDate.now(clock)
-                    val newWorker = Worker(
-                        id = ManualWorkerId.create(),
-                        name = normalizedName,
-                        qrRaw = null,
-                        qrcodePath = null,
-                        isManual = true,
-                        firstWorkDate = workDate
-                    )
-                    workerDao.insert(newWorker)
-                    newWorker
-                }
-                is ManualWorkerChoice.Reuse -> {
-                    workerDao.findById(workerChoice.workerId)
-                        ?: error("复用的工人不存在：${workerChoice.workerId}")
-                }
+            val worker = if (existingWorkerId != null) {
+                workerDao.findById(existingWorkerId)
+                    ?: error("指定的工人不存在：$existingWorkerId")
+            } else {
+                val existing = wageRecordDao.findById(recordId)
+                val workDate = existing?.record?.workDate ?: LocalDate.now(clock)
+                val newWorker = Worker(
+                    id = ManualWorkerId.create(),
+                    name = normalizedName,
+                    qrRaw = null,
+                    qrcodePath = null,
+                    isManual = true,
+                    firstWorkDate = workDate
+                )
+                workerDao.insert(newWorker)
+                newWorker
             }
 
-            // 2. 改工资记录（DAO 的 WHERE 含 is_paid=0 保护，已付记录改不动）
             val rows = wageRecordDao.updateWage(recordId, worker.id, wageCent)
             rows > 0
         }
@@ -184,8 +173,6 @@ class WageRepository(
 
     /**
      * 删除单条工资记录。删除不级联删工人（V1.1 强制）。
-     *
-     * @return true 表示成功
      */
     suspend fun deleteRecord(recordId: Long): Boolean {
         val rows = wageRecordDao.deleteById(recordId)
