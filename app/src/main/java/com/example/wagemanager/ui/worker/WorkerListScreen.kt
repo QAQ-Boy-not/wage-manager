@@ -178,7 +178,7 @@ fun WorkerListScreen(
                                 group = group,
                                 isPaidTab = state.isPaidTab,
                                 onWorkerClick = onWorkerClick,
-                                onLongPress = { longPressGroup = group }
+                                onMenuClick = { longPressGroup = group }
                             )
                         }
                     }
@@ -273,39 +273,36 @@ fun WorkerListScreen(
 }
 
 /**
- * 工人聚合卡片（V1.3 新版）
+ * 工人聚合卡片（V1.3 + M2.1 修复长按）
  *
  * - 未付 tab：显示未付金额 + 未付笔数 + 未付订单缩略
  * - 已付 tab：显示已付金额 + 已付笔数 + 已付订单缩略
  * - 点击 → 进入工人详情（看所有订单）
- * - 长按 → 弹 WorkerDetailDialog（累计统计）
+ * - 右上角 "..." 图标按钮 → 弹 WorkerDetailDialog（累计统计）
  *
- * Bug 修复（M2.1）：用 rememberUpdatedState 包装回调，
- * 避免 pointerInput(key) 闭包陷阱（key 不变时闭包不更新）
+ * M2.1 决策：避免长按。改用可见的"..."图标按钮。
  */
 @Composable
 private fun WorkerGroupCard(
     group: WorkerGroup,
     isPaidTab: Boolean,
     onWorkerClick: (String) -> Unit,
-    onLongPress: () -> Unit
+    onMenuClick: () -> Unit
 ) {
     val visibleBills = if (isPaidTab) group.paidBills else group.unpaidBills
     val amount = if (isPaidTab) group.paidCent else group.unpaidCent
     val count = if (isPaidTab) group.paidCount else group.unpaidCount
     val amountColor = if (isPaidTab) R.color.wage_paid_green else R.color.wage_unpaid_red
 
-    // Bug 1 修复：闭包陷阱防护（rememberUpdatedState 让回调永远指向最新值）
+    // Bug 1 修复：闭包陷阱防护
     val currentOnClick by rememberUpdatedState { onWorkerClick(group.workerId) }
-    val currentOnLongPress by rememberUpdatedState { onLongPress() }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .pointerInput(Unit) {  // 用 Unit 作 key，永远只订阅一次
+            .pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = { currentOnClick() },
-                    onLongPress = { currentOnLongPress() }
+                    onTap = { currentOnClick() }
                 )
             },
         colors = CardDefaults.cardColors(
@@ -318,6 +315,7 @@ private fun WorkerGroupCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
+            // 顶部：姓名 + "..." 菜单按钮（Bug 5：替代长按）
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -328,6 +326,19 @@ private fun WorkerGroupCard(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
                 )
+                // M2.1：右上角 "..." 图标按钮（替代长按，老年用户能看见）
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clickable(onClick = onMenuClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "⋮",
+                        fontSize = 28.sp,
+                        color = colorResource(R.color.wage_disabled_gray)
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(

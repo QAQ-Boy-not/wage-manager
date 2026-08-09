@@ -14,7 +14,7 @@
 package com.example.wagemanager.ui.worker
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -154,7 +154,7 @@ fun WorkerDetailScreen(
                                             )
                                         },
                                         onRevokeClick = null,
-                                        onLongClick = {
+                                        onMenuClick = {
                                             viewModel.onActionMenuShow(bill.recordId)
                                         }
                                     )
@@ -185,7 +185,7 @@ fun WorkerDetailScreen(
                                                 )
                                             )
                                         },
-                                        onLongClick = {
+                                        onMenuClick = {
                                             viewModel.onActionMenuShow(bill.recordId)
                                         }
                                     )
@@ -409,10 +409,10 @@ private fun BillGroupHeader(title: String, color: Color) {
 }
 
 /**
- * 账单卡片
+ * 账单卡片（M2.1 修复长按）
  * - 未付账单：右上角 [✅ 标记已付] 按钮
- * - 已付账单：右上角 [↩️ 撤销付款] 按钮（M2.1 Bug2 修复：直接显示，不再依赖长按）
- * - 长按账单：弹操作菜单（含删除 / 编辑）
+ * - 已付账单：右上角 [↩️ 撤销] 按钮
+ * - 右上角 "..." 图标按钮 → 弹操作菜单 [✏️ 编辑] [🗑️ 删除]（替代长按）
  */
 @Composable
 private fun BillCard(
@@ -420,18 +420,11 @@ private fun BillCard(
     workerName: String,
     onMarkPaidClick: (() -> Unit)?,
     onRevokeClick: (() -> Unit)?,
-    onLongClick: () -> Unit
+    onMenuClick: () -> Unit
 ) {
-    val currentOnLongPress by androidx.compose.runtime.rememberUpdatedState { onLongClick() }
-
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .pointerInput(bill.recordId) {
-                detectTapGestures(
-                    onLongPress = { currentOnLongPress() }
-                )
-            },
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = colorResource(R.color.wage_card_background)
         ),
@@ -486,50 +479,64 @@ private fun BillCard(
                 }
             }
 
-            // 右侧按钮（未付/已付显示不同按钮，M2.1 修复）
-            when {
-                !bill.isPaid && onMarkPaidClick != null -> {
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                color = colorResource(R.color.wage_paid_green),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                            .pointerInput(bill.recordId) {
-                                detectTapGestures(onTap = { onMarkPaidClick() })
-                            }
-                    ) {
-                        Text(
+            // 右侧：操作按钮 + "..." 菜单按钮（垂直布局）
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // 标记已付 / 撤销 按钮
+                when {
+                    !bill.isPaid && onMarkPaidClick != null -> {
+                        ActionButton(
                             text = stringResource(R.string.action_mark_paid),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            bgColor = colorResource(R.color.wage_paid_green),
+                            onClick = onMarkPaidClick
+                        )
+                    }
+                    bill.isPaid && onRevokeClick != null -> {
+                        ActionButton(
+                            text = stringResource(R.string.action_revoke_short),
+                            bgColor = colorResource(R.color.wage_unpaid_red),
+                            onClick = onRevokeClick
                         )
                     }
                 }
-                bill.isPaid && onRevokeClick != null -> {
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                color = colorResource(R.color.wage_unpaid_red),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                            .pointerInput(bill.recordId) {
-                                detectTapGestures(onTap = { onRevokeClick() })
-                            }
-                    ) {
-                        Text(
-                            text = stringResource(R.string.action_revoke_short),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
+
+                // "..." 菜单按钮（替代长按，老年用户可见）
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable(onClick = onMenuClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "⋮",
+                        fontSize = 24.sp,
+                        color = colorResource(R.color.wage_disabled_gray)
+                    )
                 }
             }
         }
+    }
+}
+
+/**
+ * 操作按钮（标记已付 / 撤销）—— 通用样式
+ */
+@Composable
+private fun ActionButton(text: String, bgColor: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .background(color = bgColor, shape = RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
     }
 }
 
