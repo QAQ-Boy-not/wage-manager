@@ -67,6 +67,7 @@ fun WorkerDetailScreen(
     onBack: () -> Unit
 ) {
     val viewModel: WorkerDetailViewModel = viewModel(
+        key = "WorkerDetailVM-$workerId",  // 不同 workerId 创建不同 VM 实例（M2.1 Bug10 修复）
         factory = WorkerDetailViewModel.factory(repository, workerId)
     )
     val state by viewModel.uiState.collectAsStateWithLifecycle()
