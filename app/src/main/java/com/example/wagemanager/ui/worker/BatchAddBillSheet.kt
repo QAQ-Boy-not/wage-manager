@@ -110,7 +110,6 @@ fun BatchAddBillSheet(
         allWorkers = repository.listAllWorkers().map {
             WorkerPickItem(it.id, it.name, it.firstWorkDate)
         }
-        allWorkersLoaded = true
     }
     LaunchedEffect(Unit) {
         repository.observeWorksites().collect { wsList ->
