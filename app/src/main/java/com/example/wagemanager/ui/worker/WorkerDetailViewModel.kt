@@ -75,9 +75,14 @@ data class WorkerDetailUiState(
     val totalCent: Long = 0L,
     val unpaidCent: Long = 0L,
     val paidCent: Long = 0L,
+    val isPaidTab: Boolean = false,  // M2.1：Tab 切换（true = 已付）
     val control: DetailControlState = DetailControlState(),
     val isWorkerNotFound: Boolean = false
 ) {
+    /** 当前 tab 应显示的账单 */
+    fun visibleBills(): List<BillItem> =
+        if (isPaidTab) paidBills else unpaidBills
+
     fun findBillById(recordId: Long): BillItem? =
         (unpaidBills + paidBills).firstOrNull { it.recordId == recordId }
 }
@@ -97,6 +102,7 @@ class WorkerDetailViewModel(
 
     private val _workerInfo = MutableStateFlow<Worker?>(null)
     private val _control = MutableStateFlow(DetailControlState())
+    private val _isPaidTab = MutableStateFlow(false)
 
     private val events = Channel<WorkerDetailEvent>(Channel.BUFFERED)
     val eventFlow = events.receiveAsFlow()
@@ -107,12 +113,13 @@ class WorkerDetailViewModel(
         }
     }
 
-    // 3 个 Flow combine（kotlinx.coroutines 提供 5 参数版本，3 个 OK）
+    // 4 个 Flow combine（5 参数版本支持）
     val uiState: StateFlow<WorkerDetailUiState> = combine(
         repository.observeWorkerDetail(workerId),
         _workerInfo,
-        _control
-    ) { records, worker, control ->
+        _control,
+        _isPaidTab
+    ) { records, worker, control, isPaidTab ->
         val items = records.map { record ->
             BillItem(
                 recordId = record.record.id,
@@ -137,6 +144,7 @@ class WorkerDetailViewModel(
             totalCent = items.sumOf { it.wageCent },
             unpaidCent = unpaid.sumOf { it.wageCent },
             paidCent = paid.sumOf { it.wageCent },
+            isPaidTab = isPaidTab,
             control = control,
             isWorkerNotFound = worker == null && records.isEmpty()
         )
@@ -147,6 +155,10 @@ class WorkerDetailViewModel(
     )
 
     // ===== 添加 / 编辑账单 =====
+
+    fun onTabChange(toPaidTab: Boolean) {
+        _isPaidTab.value = toPaidTab
+    }
 
     fun onAddBillClick() {
         _control.value = _control.value.copy(

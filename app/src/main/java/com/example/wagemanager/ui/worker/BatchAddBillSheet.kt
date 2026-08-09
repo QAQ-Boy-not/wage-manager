@@ -309,7 +309,7 @@ fun BatchAddBillSheet(
         }
     }
 
-    // ===== 工人选择器 =====
+    // ===== 工人选择器（Bug17：支持新建工人）=====
     if (form.showWorkerPicker) {
         WorkerPickerDialog(
             allWorkers = allWorkers,
@@ -322,11 +322,101 @@ fun BatchAddBillSheet(
                     showWorkerPicker = false
                 )
             },
+            onCreateNewWorker = { name ->
+                scope.launch {
+                    try {
+                        val newWorker = repository.insertWorker(name.trim(), LocalDate.now())
+                        val newItem = WorkerPickItem(newWorker.id, newWorker.name, newWorker.firstWorkDate)
+                        allWorkers = allWorkers + newItem
+                        form = form.copy(
+                            selectedWorkerIds = form.selectedWorkerIds + newWorker.id,
+                            selectedWorkerNames = form.selectedWorkerNames + newWorker.name
+                        )
+                    } catch (e: Exception) {
+                        // 同名抛 IllegalArgumentException（M2.1 强制改名）
+                    }
+                }
+            },
             onDismiss = { form = form.copy(showWorkerPicker = false) }
         )
     }
 
-    // ===== 加载数据 =====
+    // ===== Bug16：新建工区对话框 =====
+    if (form.showWorksitePicker) {
+        CreateWorksiteDialog(
+            onConfirm = { name, address ->
+                scope.launch {
+                    try {
+                        val newWorksite = repository.createWorksite(name, address)
+                        form = form.copy(
+                            worksiteId = newWorksite.id,
+                            worksiteName = newWorksite.name,
+                            showWorksitePicker = false
+                        )
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                }
+            },
+            onDismiss = { form = form.copy(showWorksitePicker = false) }
+        )
+    }
+}
+
+/**
+ * Bug16：新建工区对话框
+ */
+@Composable
+private fun CreateWorksiteDialog(
+    onConfirm: (name: String, address: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("新建工区", fontSize = 22.sp, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it; error = null },
+                    label = { Text("工区名称") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = address,
+                    onValueChange = { address = it; error = null },
+                    label = { Text("详细地址") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (error != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(error!!, fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (name.isBlank() || address.isBlank()) {
+                    error = "名称和地址都不能为空"
+                    return@TextButton
+                }
+                onConfirm(name.trim(), address.trim())
+            }) {
+                Text("✅ 保存", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", fontSize = 18.sp)
+            }
+        }
+    )
 }
 
 /**
