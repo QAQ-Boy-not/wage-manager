@@ -291,6 +291,19 @@ class HomeViewModel(
         }
     }
 
+    /**
+     * 同名对话框被关闭（点对话框外 / 返回键）。
+     * 清空 selectedExistingWorkerId 让用户从零开始选择。
+     */
+    fun onDuplicateDialogDismiss() {
+        _registerForm.update {
+            it.copy(
+                isDuplicateDialogVisible = false,
+                selectedExistingWorkerId = null
+            )
+        }
+    }
+
     fun onRegisterSubmit() {
         val form = _registerForm.value
         if (form.mode == FormMode.Edit) {
