@@ -1,4 +1,4 @@
-// WageRepository.kt - 工资业务仓库
+// WageRepository.kt - 工资业务仓库（V1.2 工人模型）
 //
 // 设计要点：
 // 1. 业务校验放在 Repository，不让 ViewModel / UI 直接接触 Room
@@ -6,10 +6,10 @@
 //    工资写入失败时不会遗留"无工资记录的孤儿工人"
 // 3. Clock 通过构造注入，方便测试固定"今天"
 //
-// 同名处理（M2.1 简化）：
-// - UI 弹"切换到该工人 / 改名新建"对话框
-// - ViewModel 解析为 existingWorkerId: String?（null = 新建，非 null = 用已存在）
-// - Repository 不再做 sealed ManualWorkerChoice 复杂分支，直接传 existingWorkerId
+// V1.2 模型变化：
+// - registerBill 替代 registerManualWage（语义贴合新模型）
+// - 新增 observeWorkerSummaries / observeWorkerDetail（首页 + 详情页用）
+// - markPaid / revokePayment / updateWage / deleteRecord 保留（M2 用）
 //
 // 注意：WageRepository.kt 不允许被 javac 测试（依赖 AndroidX），Room 部分由 CI 验证。
 
@@ -31,13 +31,30 @@ class WageRepository(
     private val workerDao: WorkerDao get() = database.workerDao()
     private val wageRecordDao: WageRecordDao get() = database.wageRecordDao()
 
+    // ============== V1.2 新增：首页 + 详情页查询 ==============
+
     /**
-     * 观察指定日期的所有工资记录（带工人信息）。
-     * Room 写入后 Flow 自动发射新值，UI 自动刷新。
+     * 观察所有工人 + 各自账单汇总（首页用）。
      */
-    fun observeRecords(workDate: LocalDate): Flow<List<WageRecordWithWorker>> {
-        return wageRecordDao.observeByWorkDate(workDate)
+    fun observeWorkerSummaries(): Flow<List<WorkerSummary>> {
+        return wageRecordDao.observeWorkerSummaries()
     }
+
+    /**
+     * 观察某工人的所有账单（详情页用，按日期倒序）。
+     */
+    fun observeWorkerDetail(workerId: String): Flow<List<WageRecordWithWorker>> {
+        return wageRecordDao.observeByWorkerId(workerId)
+    }
+
+    /**
+     * 按 id 查工人（详情页基本信息用）。
+     */
+    suspend fun findWorkerById(workerId: String): Worker? {
+        return workerDao.findById(workerId)
+    }
+
+    // ============== 同名查重（V1.2 简化版） ==============
 
     /**
      * 按姓名精确查工人（同名校验用）。
@@ -48,11 +65,13 @@ class WageRepository(
         return workerDao.findByExactName(trimmed)
     }
 
+    // ============== 添加账单（V1.2 改名为 registerBill） ==============
+
     /**
-     * 手动登记工资。
+     * 添加一张账单（V1.2 主入口）。
      *
-     * 同名处理：
-     * - existingWorkerId == null：新建一个 manual_xxx 工人（首次登记 / 改名后无同名）
+     * 同名处理（V1.2 简化）：
+     * - existingWorkerId == null：新建一个 manual_xxx 工人（首次添加 / 改名后无同名）
      * - existingWorkerId != null：用已存在工人（同名字符串选了"切换到该工人"）
      *
      * 业务规则：
@@ -60,11 +79,11 @@ class WageRepository(
      * - wageCent 必须 > 0
      * - workDate 不能晚于今天
      *
-     * 事务保证：写工人和写工资是原子的。
+     * 事务保证：写工人和写账单是原子的。
      *
-     * @return 新工资记录的自增 id
+     * @return 新账单的自增 id
      */
-    suspend fun registerManualWage(
+    suspend fun registerBill(
         name: String,
         wageCent: Long,
         workDate: LocalDate,
@@ -79,11 +98,9 @@ class WageRepository(
 
         return database.withTransaction {
             val worker = if (existingWorkerId != null) {
-                // 切换到已存在工人
                 workerDao.findById(existingWorkerId)
                     ?: error("指定的工人不存在：$existingWorkerId")
             } else {
-                // 新建工人
                 val newWorker = Worker(
                     id = ManualWorkerId.create(),
                     name = normalizedName,
@@ -109,10 +126,11 @@ class WageRepository(
         }
     }
 
+    // ============== 标记 / 撤销 / 编辑 / 删除（M2 准备，V1.2 先保留） ==============
+
     /**
      * 标记已付。
-     *
-     * @return true 表示成功（记录存在且原状态是未付）；false 表示记录不存在或已是已付
+     * @return true 表示成功（记录存在且原状态是未付）
      */
     suspend fun markPaid(recordId: Long): Boolean {
         val paidTime = LocalDateTime.now(clock).withNano(0)
@@ -122,8 +140,6 @@ class WageRepository(
 
     /**
      * 撤销付款（已付 → 未付，paid_time 置空）。
-     *
-     * @return true 表示成功（记录存在且原状态是已付）；false 表示记录不存在或已是未付
      */
     suspend fun revokePayment(recordId: Long): Boolean {
         val rows = wageRecordDao.revokePayment(recordId)
@@ -131,11 +147,7 @@ class WageRepository(
     }
 
     /**
-     * 编辑未付记录。
-     *
-     * 同名处理跟 registerManualWage 一致：existingWorkerId 决定是新建工人还是切换到已存在。
-     *
-     * @return true 表示成功（记录存在且原状态是未付）
+     * 编辑未付账单。
      */
     suspend fun updateWage(
         recordId: Long,
@@ -172,7 +184,7 @@ class WageRepository(
     }
 
     /**
-     * 删除单条工资记录。删除不级联删工人（V1.1 强制）。
+     * 删除单条账单。删除不级联删工人（V1.1 强制）。
      */
     suspend fun deleteRecord(recordId: Long): Boolean {
         val rows = wageRecordDao.deleteById(recordId)
