@@ -5,19 +5,26 @@
 
     <!-- 首页 -->
     <string name="action_manual_register">📝 手动登记今日工资</string>
-    <string name="empty_records_hint">还没有任何记录\n点击上方按钮登记</string>
+    <string name="empty_unpaid_hint">今日还没有未付记录</string>
+    <string name="empty_paid_hint">今日还没有已付记录</string>
 
     <!-- 统计栏 -->
     <string name="stats_total">💰 今日合计：%1$s 元</string>
     <string name="stats_unpaid">🔴 未付：%1$d 条</string>
-    <string name="stats_paid">� 已付：%1$d 条</string>
+    <string name="stats_paid">🟢 已付：%1$d 条</string>
     <string name="stats_records">共 %1$d 条记录</string>
+
+    <!-- 双标签 -->
+    <string name="tab_unpaid">🔴 未付（%1$d）</string>
+    <string name="tab_paid">🟢 已付（%1$d）</string>
 
     <!-- 登记表单 -->
     <string name="register_title">登记今日工资</string>
+    <string name="edit_title">编辑工资</string>
     <string name="field_worker_name">工人姓名</string>
     <string name="field_wage_today">今日工资（元）</string>
     <string name="action_confirm_register">✅ 登记</string>
+    <string name="action_save_edit">✅ 保存</string>
     <string name="action_cancel">取消</string>
 
     <!-- 错误提示 -->
@@ -38,7 +45,29 @@
     <string name="dialog_confirm_new_worker_message">将新建一个名为「%1$s」的工人，与已有同名工人独立区分</string>
     <string name="action_confirm">确认</string>
 
+    <!-- 工资卡片上的操作 -->
+    <string name="action_mark_paid">✅ 标记已付</string>
+    <string name="action_revoke_payment">撤销付款</string>
+    <string name="action_delete_record">删除记录</string>
+    <string name="label_paid_time">已付时间</string>
+
+    <!-- 长按操作菜单 -->
+    <string name="dialog_action_menu_title">「%1$s」的操作</string>
+    <string name="dialog_action_menu_message">请选择要执行的操作</string>
+
+    <!-- 二次确认对话框 -->
+    <string name="dialog_mark_paid_title">确认标记已付？</string>
+    <string name="dialog_mark_paid_message">「%1$s」%2$s 元，确认标记为已付吗？</string>
+    <string name="dialog_revoke_title">确认撤销付款？</string>
+    <string name="dialog_revoke_message">「%1$s」已标记为已付，撤销后将变回未付状态</string>
+    <string name="dialog_delete_title">确认删除？</string>
+    <string name="dialog_delete_message">「%1$s」%2$s 元，确认删除这条记录吗？删除后无法恢复</string>
+
     <!-- Toast -->
     <string name="toast_register_success">已登记：%1$s %2$s元</string>
-    <string name="toast_register_failed">登记失败：%1$s</string>
+    <string name="toast_edit_success">已修改：%1$s %2$s元</string>
+    <string name="toast_mark_paid_success">已标记为已付</string>
+    <string name="toast_revoke_success">已撤销付款</string>
+    <string name="toast_delete_success">已删除记录</string>
+    <string name="toast_operation_failed">操作失败：%1$s</string>
 </resources>

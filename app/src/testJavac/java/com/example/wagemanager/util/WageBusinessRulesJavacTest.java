@@ -7,6 +7,7 @@
 package com.example.wagemanager.util;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.UUID;
@@ -22,6 +23,8 @@ public final class WageBusinessRulesJavacTest {
         testRecordSummaryEmpty();
         testDateRules();
         testManualWorkerId();
+        testPaymentRulesValidate();
+        testPaymentRulesFormat();
         System.out.println("All business rule tests passed.");
     }
 
@@ -163,5 +166,49 @@ public final class WageBusinessRulesJavacTest {
         String expected = "manual_550e8400e29b41d4a716446655440000";
         String actual = ManualWorkerId.fromUuid(fixed);
         check(expected.equals(actual), "固定 UUID 输出错误，期望：" + expected + " 实际：" + actual);
+    }
+
+    // ===== 支付规则校验（M2 新增） =====
+    private static void testPaymentRulesValidate() {
+        // 标记已付：只能对未付记录
+        check(PaymentRules.validate(PaymentRules.PaymentAction.MARK_PAID, false)
+                == PaymentRules.PaymentError.NONE, "未付记录可标记已付");
+        check(PaymentRules.validate(PaymentRules.PaymentAction.MARK_PAID, true)
+                == PaymentRules.PaymentError.ALREADY_PAID, "已付记录不能重复标记已付");
+
+        // 撤销付款：只能对已付记录
+        check(PaymentRules.validate(PaymentRules.PaymentAction.REVOKE_PAYMENT, true)
+                == PaymentRules.PaymentError.NONE, "已付记录可撤销");
+        check(PaymentRules.validate(PaymentRules.PaymentAction.REVOKE_PAYMENT, false)
+                == PaymentRules.PaymentError.NOT_PAID, "未付记录不能撤销");
+
+        // 编辑：只能对未付记录
+        check(PaymentRules.validate(PaymentRules.PaymentAction.EDIT, false)
+                == PaymentRules.PaymentError.NONE, "未付记录可编辑");
+        check(PaymentRules.validate(PaymentRules.PaymentAction.EDIT, true)
+                == PaymentRules.PaymentError.CANNOT_EDIT_PAID, "已付记录不能编辑");
+
+        // 删除：任何状态都可
+        check(PaymentRules.validate(PaymentRules.PaymentAction.DELETE, false)
+                == PaymentRules.PaymentError.NONE, "未付可删除");
+        check(PaymentRules.validate(PaymentRules.PaymentAction.DELETE, true)
+                == PaymentRules.PaymentError.NONE, "已付可删除");
+    }
+
+    // ===== 支付时间格式化（M2 新增） =====
+    private static void testPaymentRulesFormat() {
+        // null 返回空串
+        check("".equals(PaymentRules.formatPaidTime(null)), "null paidTime 返回空串");
+        check("".equals(PaymentRules.formatPaidTimeFull(null)), "null paidTimeFull 返回空串");
+
+        // HH:mm 格式
+        LocalDateTime t1 = LocalDateTime.of(2026, 8, 7, 14, 30, 5);
+        check("14:30".equals(PaymentRules.formatPaidTime(t1)), "14:30:05 应格式化为 14:30");
+        check("2026-08-07 14:30:05".equals(PaymentRules.formatPaidTimeFull(t1)),
+                "完整格式含日期时间");
+
+        // 0 点
+        LocalDateTime t2 = LocalDateTime.of(2026, 8, 7, 0, 0, 0);
+        check("00:00".equals(PaymentRules.formatPaidTime(t2)), "0 点格式化为 00:00");
     }
 }
