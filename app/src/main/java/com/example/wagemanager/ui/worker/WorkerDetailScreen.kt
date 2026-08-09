@@ -153,6 +153,7 @@ fun WorkerDetailScreen(
                                                 )
                                             )
                                         },
+                                        onRevokeClick = null,
                                         onLongClick = {
                                             viewModel.onActionMenuShow(bill.recordId)
                                         }
@@ -176,6 +177,14 @@ fun WorkerDetailScreen(
                                         bill = bill,
                                         workerName = state.workerName,
                                         onMarkPaidClick = null,
+                                        onRevokeClick = {
+                                            viewModel.setPendingAction(
+                                                PendingConfirmAction.RevokePayment(
+                                                    recordId = bill.recordId,
+                                                    workerName = state.workerName
+                                                )
+                                            )
+                                        },
                                         onLongClick = {
                                             viewModel.onActionMenuShow(bill.recordId)
                                         }
@@ -224,18 +233,30 @@ fun WorkerDetailScreen(
         }
     }
 
-    // ===== 添加 / 编辑账单 BottomSheet =====
+    // ===== 添加 / 编辑账单 BottomSheet（Bug 4 修复）=====
     if (state.control.isRegisterSheetVisible) {
         val editingBill = state.control.editingBillId?.let { id ->
             state.findBillById(id)
         }
-        RegisterBillSheet(
-            repository = repository,
-            initialName = editingBill?.let { state.workerName } ?: state.workerName.takeIf { it.isNotEmpty() },
-            editingBill = editingBill,
-            editingBillId = state.control.editingBillId,
-            onDismiss = viewModel::onAddBillDismiss
-        )
+        if (editingBill != null) {
+            // 编辑模式：单笔编辑（不预选）
+            RegisterBillSheet(
+                repository = repository,
+                initialName = state.workerName.takeIf { it.isNotEmpty() },
+                editingBill = editingBill,
+                editingBillId = state.control.editingBillId,
+                onDismiss = viewModel::onAddBillDismiss
+            )
+        } else {
+            // 新增模式：批量添加（Bug 4：预选当前工人）
+            BatchAddBillSheet(
+                repository = repository,
+                workDate = state.control.editingBillId?.let { java.time.LocalDate.now() }
+                    ?: java.time.LocalDate.now(),
+                preselectedWorkerIds = setOf(workerId),
+                onDismiss = viewModel::onAddBillDismiss
+            )
+        }
     }
 
     // ===== 操作菜单（长按账单） =====
@@ -388,21 +409,27 @@ private fun BillGroupHeader(title: String, color: Color) {
 }
 
 /**
- * 账单卡片（未付显示"标记已付"按钮；已付显示支付时间；长按弹操作菜单）
+ * 账单卡片
+ * - 未付账单：右上角 [✅ 标记已付] 按钮
+ * - 已付账单：右上角 [↩️ 撤销付款] 按钮（M2.1 Bug2 修复：直接显示，不再依赖长按）
+ * - 长按账单：弹操作菜单（含删除 / 编辑）
  */
 @Composable
 private fun BillCard(
     bill: BillItem,
     workerName: String,
     onMarkPaidClick: (() -> Unit)?,
+    onRevokeClick: (() -> Unit)?,
     onLongClick: () -> Unit
 ) {
+    val currentOnLongPress by androidx.compose.runtime.rememberUpdatedState { onLongClick() }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .pointerInput(bill.recordId) {
                 detectTapGestures(
-                    onLongPress = { onLongClick() }
+                    onLongPress = { currentOnLongPress() }
                 )
             },
         colors = CardDefaults.cardColors(
@@ -422,7 +449,6 @@ private fun BillCard(
                     fontSize = 16.sp,
                     color = colorResource(R.color.wage_text_primary)
                 )
-                // V1.3 新增：工区名
                 if (!bill.worksiteName.isNullOrBlank()) {
                     Text(
                         text = "📍 ${bill.worksiteName}",
@@ -430,7 +456,6 @@ private fun BillCard(
                         color = Color.Gray
                     )
                 }
-                // V1.3 新增：备注
                 if (!bill.notes.isNullOrBlank()) {
                     Text(
                         text = bill.notes,
@@ -460,25 +485,48 @@ private fun BillCard(
                     )
                 }
             }
-            // 未付账单显示"标记已付"按钮
-            if (!bill.isPaid && onMarkPaidClick != null) {
-                Box(
-                    modifier = Modifier
-                        .background(
-                            color = colorResource(R.color.wage_paid_green),
-                            shape = RoundedCornerShape(8.dp)
+
+            // 右侧按钮（未付/已付显示不同按钮，M2.1 修复）
+            when {
+                !bill.isPaid && onMarkPaidClick != null -> {
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = colorResource(R.color.wage_paid_green),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .pointerInput(bill.recordId) {
+                                detectTapGestures(onTap = { onMarkPaidClick() })
+                            }
+                    ) {
+                        Text(
+                            text = stringResource(R.string.action_mark_paid),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .pointerInput(bill.recordId) {
-                            detectTapGestures(onTap = { onMarkPaidClick() })
-                        }
-                ) {
-                    Text(
-                        text = stringResource(R.string.action_mark_paid),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    }
+                }
+                bill.isPaid && onRevokeClick != null -> {
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = colorResource(R.color.wage_unpaid_red),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .pointerInput(bill.recordId) {
+                                detectTapGestures(onTap = { onRevokeClick() })
+                            }
+                    ) {
+                        Text(
+                            text = stringResource(R.string.action_revoke_short),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }

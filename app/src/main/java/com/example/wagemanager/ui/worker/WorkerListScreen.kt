@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -41,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -127,6 +129,20 @@ fun WorkerListScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
+                // ===== Bug 3：未付 tab 显示"全部标记已付"按钮 =====
+                if (!state.isPaidTab && state.totalUnpaidCount > 0) {
+                    BigButton(
+                        text = stringResource(
+                            R.string.action_mark_all_paid,
+                            state.totalUnpaidCount,
+                            MoneyUtils.formatCent(state.totalUnpaidCent)
+                        ),
+                        backgroundColor = colorResource(R.color.wage_paid_green),
+                        onClick = viewModel::onMarkAllPaidClick
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
                 // ===== 工人聚合列表 =====
                 val visibleGroups = state.visibleGroups()
                 if (visibleGroups.isEmpty()) {
@@ -194,6 +210,47 @@ fun WorkerListScreen(
         )
     }
 
+    // ===== Bug 3：全部标记已付 二次确认 =====
+    if (state.isMarkAllPaidConfirmVisible) {
+        AlertDialog(
+            onDismissRequest = viewModel::onMarkAllPaidDismiss,
+            title = {
+                Text(
+                    text = stringResource(R.string.dialog_mark_all_paid_title),
+                    fontSize = 22.sp
+                )
+            },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.dialog_mark_all_paid_message,
+                        state.totalUnpaidCount,
+                        MoneyUtils.formatCent(state.totalUnpaidCent)
+                    ),
+                    fontSize = 18.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::onMarkAllPaidConfirm) {
+                    Text(
+                        text = stringResource(R.string.action_mark_paid),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colorResource(R.color.wage_paid_green)
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::onMarkAllPaidDismiss) {
+                    Text(
+                        text = stringResource(R.string.action_cancel),
+                        fontSize = 20.sp
+                    )
+                }
+            }
+        )
+    }
+
     // ===== 长按工人弹 WorkerDetailDialog =====
     longPressGroup?.let { group ->
         WorkerDetailInfo(
@@ -222,6 +279,9 @@ fun WorkerListScreen(
  * - 已付 tab：显示已付金额 + 已付笔数 + 已付订单缩略
  * - 点击 → 进入工人详情（看所有订单）
  * - 长按 → 弹 WorkerDetailDialog（累计统计）
+ *
+ * Bug 修复（M2.1）：用 rememberUpdatedState 包装回调，
+ * 避免 pointerInput(key) 闭包陷阱（key 不变时闭包不更新）
  */
 @Composable
 private fun WorkerGroupCard(
@@ -235,13 +295,17 @@ private fun WorkerGroupCard(
     val count = if (isPaidTab) group.paidCount else group.unpaidCount
     val amountColor = if (isPaidTab) R.color.wage_paid_green else R.color.wage_unpaid_red
 
+    // Bug 1 修复：闭包陷阱防护（rememberUpdatedState 让回调永远指向最新值）
+    val currentOnClick by rememberUpdatedState { onWorkerClick(group.workerId) }
+    val currentOnLongPress by rememberUpdatedState { onLongPress() }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .pointerInput(group.workerId) {
+            .pointerInput(Unit) {  // 用 Unit 作 key，永远只订阅一次
                 detectTapGestures(
-                    onTap = { onWorkerClick(group.workerId) },
-                    onLongPress = { onLongPress() }
+                    onTap = { currentOnClick() },
+                    onLongPress = { currentOnLongPress() }
                 )
             },
         colors = CardDefaults.cardColors(

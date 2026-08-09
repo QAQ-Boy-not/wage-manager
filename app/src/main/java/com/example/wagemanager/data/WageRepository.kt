@@ -226,6 +226,15 @@ class WageRepository(
         return rows > 0
     }
 
+    /**
+     * 批量标记指定日期所有未付账单（M2.1 Bug3）
+     * @return 标记成功的笔数
+     */
+    suspend fun markAllPaidByDate(workDate: LocalDate): Int {
+        val paidTime = LocalDateTime.now(clock).withNano(0)
+        return wageRecordDao.markAllPaidByDate(workDate, paidTime)
+    }
+
     suspend fun revokePayment(recordId: Long): Boolean {
         val rows = wageRecordDao.revokePayment(recordId)
         return rows > 0

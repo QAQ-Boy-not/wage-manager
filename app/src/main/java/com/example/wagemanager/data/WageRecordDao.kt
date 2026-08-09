@@ -152,6 +152,19 @@ internal interface WageRecordDao {
     suspend fun markPaid(recordId: Long, paidTime: LocalDateTime): Int
 
     /**
+     * 批量标记已付（M2.1 Bug3）：把指定日期所有未付账单一次性标记为已付。
+     * 返回受影响行数。
+     */
+    @Query(
+        """
+        UPDATE wage_records
+        SET is_paid = 1, paid_time = :paidTime
+        WHERE work_date = :workDate AND is_paid = 0
+        """
+    )
+    suspend fun markAllPaidByDate(workDate: LocalDate, paidTime: LocalDateTime): Int
+
+    /**
      * 撤销付款。
      */
     @Query(

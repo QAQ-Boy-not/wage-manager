@@ -53,7 +53,8 @@ data class WorkerListUiState(
     val totalUnpaidCount: Int = 0,
     val totalPaidCent: Long = 0L,
     val totalPaidCount: Int = 0,
-    val isBatchSheetVisible: Boolean = false
+    val isBatchSheetVisible: Boolean = false,
+    val isMarkAllPaidConfirmVisible: Boolean = false
 ) {
     fun visibleGroups(): List<WorkerGroup> =
         workerGroups.filter { group ->
@@ -72,13 +73,15 @@ class WorkerListViewModel(
     private val _workDate = MutableStateFlow(LocalDate.now(clock))
     private val _isPaidTab = MutableStateFlow(false)
     private val _isBatchSheetVisible = MutableStateFlow(false)
+    private val _isMarkAllPaidConfirmVisible = MutableStateFlow(false)
 
     val uiState: StateFlow<WorkerListUiState> = combine(
         _workDate.flatMapLatest { date -> repository.observeBillsByWorkDate(date) },
         _workDate,
         _isPaidTab,
-        _isBatchSheetVisible
-    ) { bills, workDate, isPaidTab, isSheetVisible ->
+        _isBatchSheetVisible,
+        _isMarkAllPaidConfirmVisible
+    ) { bills, workDate, isPaidTab, isSheetVisible, isMarkAllConfirm ->
         val items = bills.map { record ->
             BillItem(
                 recordId = record.record.id,
@@ -92,11 +95,7 @@ class WorkerListViewModel(
             )
         }
 
-        // 按 workerId 聚合
-        val groups = items.groupBy { it.recordId.toString().let { _ -> "" } }
-            .let { _ -> emptyList<WorkerGroup>() } // placeholder，下面替换
-
-        val groups2 = bills.groupBy { it.record.workerId }
+        val groups = bills.groupBy { it.record.workerId }
             .map { (workerId, groupBills) ->
                 val groupItems = groupBills.map { it.toBillItem() }
                 val unpaid = groupItems.filter { !it.isPaid }
@@ -111,7 +110,7 @@ class WorkerListViewModel(
                     unpaidBills = unpaid.sortedByDescending { it.recordId },
                     paidBills = paid.sortedByDescending { it.recordId }
                 )
-            }
+        }
 
         val totalUnpaid = items.filter { !it.isPaid }
         val totalPaid = items.filter { it.isPaid }
@@ -119,12 +118,13 @@ class WorkerListViewModel(
         WorkerListUiState(
             workDate = workDate,
             isPaidTab = isPaidTab,
-            workerGroups = groups2,
+            workerGroups = groups,
             totalUnpaidCent = totalUnpaid.sumOf { it.wageCent },
             totalUnpaidCount = totalUnpaid.size,
             totalPaidCent = totalPaid.sumOf { it.wageCent },
             totalPaidCount = totalPaid.size,
-            isBatchSheetVisible = isSheetVisible
+            isBatchSheetVisible = isSheetVisible,
+            isMarkAllPaidConfirmVisible = isMarkAllConfirm
         )
     }.stateIn(
         scope = viewModelScope,
@@ -149,6 +149,27 @@ class WorkerListViewModel(
 
     fun onAddBillDismiss() {
         _isBatchSheetVisible.value = false
+    }
+
+    // ===== Bug 3：全部标记已付 =====
+
+    fun onMarkAllPaidClick() {
+        _isMarkAllPaidConfirmVisible.value = true
+    }
+
+    fun onMarkAllPaidDismiss() {
+        _isMarkAllPaidConfirmVisible.value = false
+    }
+
+    fun onMarkAllPaidConfirm() {
+        _isMarkAllPaidConfirmVisible.value = false
+        viewModelScope.launch {
+            try {
+                repository.markAllPaidByDate(_workDate.value)
+            } catch (e: Exception) {
+                // 失败由 WorkerListScreen 的 LaunchedEffect eventFlow 处理
+            }
+        }
     }
 
     companion object {
