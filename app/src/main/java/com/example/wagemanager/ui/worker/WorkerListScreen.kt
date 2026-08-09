@@ -89,7 +89,7 @@ fun WorkerListScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 // ===== 顶部：日期 + 管理按钮 =====
                 Row(
@@ -105,21 +105,21 @@ fun WorkerListScreen(
                     TextButton(onClick = onManageClick) {
                         Text(
                             text = "⚙️ 管理",
-                            fontSize = 18.sp,
+                            fontSize = 16.sp,
                             color = colorResource(R.color.wage_action_blue)
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // ===== 汇总（分行显示未付/已付，M1.1 反馈 1 修复） =====
+                // ===== 汇总（分行显示未付/已付） =====
                 HomeStats(
                     unpaidCount = state.totalUnpaidCount,
                     unpaidCent = state.totalUnpaidCent,
                     paidCount = state.totalPaidCount,
                     paidCent = state.totalPaidCent
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // ===== Tab 切换 =====
                 HomeTabs(
@@ -128,7 +128,7 @@ fun WorkerListScreen(
                     paidCount = state.totalPaidCount,
                     onTabChange = viewModel::onTabChange
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // ===== Bug 3：未付 tab 显示"全部标记已付"按钮 =====
                 if (!state.isPaidTab && state.totalUnpaidCount > 0) {
@@ -141,7 +141,7 @@ fun WorkerListScreen(
                         backgroundColor = colorResource(R.color.wage_paid_green),
                         onClick = viewModel::onMarkAllPaidClick
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
 
                 // ===== 工人聚合列表 =====
@@ -310,12 +310,12 @@ private fun WorkerGroupCard(
         colors = CardDefaults.cardColors(
             containerColor = colorResource(R.color.wage_card_background)
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(10.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(12.dp)
         ) {
             // 顶部：姓名 + "..." 菜单按钮（Bug 5：替代长按）
             Row(
@@ -324,56 +324,54 @@ private fun WorkerGroupCard(
             ) {
                 Text(
                     text = "👤 ${group.workerName}",
-                    fontSize = 22.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
                 )
-                // M2.1：右上角 "..." 图标按钮（替代长按，老年用户能看见）
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(32.dp)
                         .clickable(onClick = currentOnMenuClick),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "⋮",
-                        fontSize = 28.sp,
+                        fontSize = 24.sp,
                         color = colorResource(R.color.wage_disabled_gray)
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = if (isPaidTab) "🟢 已付 $count 笔" else "🔴 应付 $count 笔",
-                fontSize = 16.sp,
+                fontSize = 14.sp,
                 color = Color.Gray
             )
             Text(
                 text = MoneyUtils.formatCent(amount) + " 元",
-                fontSize = 24.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = colorResource(amountColor)
             )
 
             // 订单缩略（前 3 笔）
             if (visibleBills.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 visibleBills.take(3).forEach { bill ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 2.dp),
+                            .padding(vertical = 1.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = bill.notes ?: (bill.worksiteName ?: ""),
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             color = colorResource(R.color.wage_text_primary),
                             modifier = Modifier.weight(1f)
                         )
                         Text(
                             text = MoneyUtils.formatCent(bill.wageCent) + " 元",
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             color = colorResource(amountColor),
                             fontWeight = FontWeight.Bold
                         )
@@ -382,9 +380,8 @@ private fun WorkerGroupCard(
                 if (visibleBills.size > 3) {
                     Text(
                         text = "...还有 ${visibleBills.size - 3} 笔",
-                        fontSize = 12.sp,
-                        color = Color.Gray,
-                        modifier = Modifier.padding(top = 4.dp)
+                        fontSize = 11.sp,
+                        color = Color.Gray
                     )
                 }
             }

@@ -126,14 +126,14 @@ fun BatchAddBillSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
             // 标题
             Text(
                 text = stringResource(R.string.batch_add_title),
                 style = MaterialTheme.typography.headlineMedium
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 反馈条
             val successMsg = form.successMessage

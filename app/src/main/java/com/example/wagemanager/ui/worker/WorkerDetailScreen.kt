@@ -110,7 +110,7 @@ fun WorkerDetailScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 20.dp)
+                            .padding(horizontal = 16.dp)
                     ) {
                         // ===== 工人信息卡 =====
                         WorkerInfoCard(
@@ -123,7 +123,7 @@ fun WorkerDetailScreen(
                             paidCount = state.paidBills.size,
                             paidCent = state.paidCent
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // ===== 账单列表 =====
                         LazyColumn(
@@ -339,48 +339,43 @@ private fun WorkerInfoCard(
         colors = CardDefaults.cardColors(
             containerColor = colorResource(R.color.wage_card_background)
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(10.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(12.dp)
         ) {
             Text(
                 text = if (name.isEmpty()) "👷" else "👤 $name",
-                fontSize = 24.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = colorResource(R.color.wage_text_primary)
             )
             if (firstWorkDate != null) {
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = stringResource(
                         R.string.detail_first_work_date,
                         DateRules.formatChineseDate(firstWorkDate)
                     ),
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     color = Color.Gray
                 )
             }
-            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = stringResource(R.string.stats_total_label, totalCount) + " / " + MoneyUtils.formatCent(totalCent) + " 元",
-                fontSize = 18.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = colorResource(R.color.wage_text_primary)
             )
-            Spacer(modifier = Modifier.height(6.dp))
-            // 分行显示未付 / 已付（M1.1 反馈 1 修复）
             Text(
                 text = "🔴 " + stringResource(R.string.stats_unpaid_count, unpaidCount) + " / " + MoneyUtils.formatCent(unpaidCent) + " 元",
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 color = colorResource(R.color.wage_unpaid_red)
             )
-            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "🟢 " + stringResource(R.string.stats_paid_count, paidCount) + " / " + MoneyUtils.formatCent(paidCent) + " 元",
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 color = colorResource(R.color.wage_paid_green)
             )
         }
@@ -391,17 +386,17 @@ private fun WorkerInfoCard(
 private fun BillGroupHeader(title: String, color: Color) {
     Text(
         text = title,
-        fontSize = 20.sp,
+        fontSize = 18.sp,
         fontWeight = FontWeight.Bold,
         color = color,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 4.dp)
     )
 }
 
 /**
- * 账单卡片（M2.1 修复长按）
+ * 账单卡片（M2.1 修复长按 + Bug12 紧凑布局）
  * - 未付账单：右上角 [✅ 标记已付] 按钮
  * - 已付账单：右上角 [↩️ 撤销] 按钮
  * - 右上角 "..." 图标按钮 → 弹操作菜单 [✏️ 编辑] [🗑️ 删除]（替代长按）
@@ -425,33 +420,32 @@ private fun BillCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = DateRules.formatChineseDate(bill.workDate),
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     color = colorResource(R.color.wage_text_primary)
                 )
                 if (!bill.worksiteName.isNullOrBlank()) {
                     Text(
                         text = "📍 ${bill.worksiteName}",
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         color = Color.Gray
                     )
                 }
                 if (!bill.notes.isNullOrBlank()) {
                     Text(
                         text = bill.notes,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         color = colorResource(R.color.wage_text_primary)
                     )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = MoneyUtils.formatCent(bill.wageCent) + " 元",
-                    fontSize = 22.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = colorResource(
                         if (bill.isPaid) R.color.wage_paid_green
@@ -459,13 +453,12 @@ private fun BillCard(
                     )
                 )
                 if (bill.isPaid && bill.paidTime != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = stringResource(
                             R.string.detail_paid_at,
                             PaymentRules.formatPaidTime(bill.paidTime)
                         ),
-                        fontSize = 14.sp,
+                        fontSize = 12.sp,
                         color = Color.Gray
                     )
                 }

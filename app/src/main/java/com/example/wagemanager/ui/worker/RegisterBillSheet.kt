@@ -120,7 +120,12 @@ fun RegisterBillSheet(
                         notes = null
                     )
                     val msg = "✅ 已修改：$name ${MoneyUtils.formatCent(parse.wageCent)}元"
-                    form = BillFormState(successMessage = msg)
+                    form = form.copy(successMessage = msg)
+                    // Bug 11 修复：编辑成功后关闭 BottomSheet（跟批量一致）
+                    scope.launch {
+                        delay(1_000)  // 短一点让用户看到反馈条
+                        onDismiss()
+                    }
                 } else {
                     repository.registerBill(
                         name = name,
@@ -130,20 +135,25 @@ fun RegisterBillSheet(
                         notes = null
                     )
                     val msg = "✅ 已添加：$name ${MoneyUtils.formatCent(parse.wageCent)}元"
-                    form = BillFormState(
-                        workDate = form.workDate,
-                        successMessage = msg
-                    )
-                }
-                scope.launch {
-                    delay(2_000)
-                    form = form.copy(successMessage = null)
+                    form = form.copy(successMessage = msg)
+                    // 新增模式也关闭 BottomSheet（妈妈点 + 加完一笔就回到列表）
+                    scope.launch {
+                        delay(1_000)
+                        onDismiss()
+                    }
                 }
             } catch (e: Exception) {
                 form = form.copy(
                     isSaving = false,
                     successMessage = "❌ 失败：${e.message ?: "未知错误"}"
                 )
+                scope.launch {
+                    delay(2_000)
+                    form = form.copy(successMessage = null)
+                }
+            }
+        }
+    }
                 scope.launch {
                     delay(2_000)
                     form = form.copy(successMessage = null)
@@ -159,7 +169,7 @@ fun RegisterBillSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
             // 标题
             Text(
@@ -169,7 +179,7 @@ fun RegisterBillSheet(
                 ),
                 style = MaterialTheme.typography.headlineMedium
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 反馈条
             val successMsg = form.successMessage
@@ -206,7 +216,7 @@ fun RegisterBillSheet(
                     )
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 工人姓名（编辑模式不可改；新建模式可改 + 同名强制改名）
             OutlinedTextField(
@@ -217,10 +227,12 @@ fun RegisterBillSheet(
                     .fillMaxWidth()
                     .onFocusChanged { /* 同名校验移到 Repository */ },
                 singleLine = true,
-                enabled = !isEditMode,
+                // Bug 13 修复：RegisterBillSheet 只在详情页用，工人已确定
+                // 永远 disable 名字输入（避免妈妈误改成别人的名字触发"重复名称"）
+                enabled = false,
                 textStyle = MaterialTheme.typography.bodyLarge
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 金额
             OutlinedTextField(
@@ -260,7 +272,7 @@ fun RegisterBillSheet(
                 textStyle = MaterialTheme.typography.bodyLarge
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // 提交 / 取消
             BigButton(
@@ -282,7 +294,7 @@ fun RegisterBillSheet(
             ) {
                 Text(text = stringResource(R.string.action_cancel), fontSize = 20.sp)
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 
