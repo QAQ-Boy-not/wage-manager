@@ -63,4 +63,12 @@
 
     <!-- 同名处理（V1.3 强制改名） -->
     <string name="error_duplicate_name">已存在「%1$s」，请改名</string>
+
+    <!-- WorkerDetailScreen 缺失的 string -->
+    <string name="worker_not_found">工人不存在或已删除</string>
+    <string name="detail_group_unpaid">🔴 未付（%1$d 笔 / %2$s 元）</string>
+    <string name="detail_group_paid">🟢 已付（%1$d 笔 / %2$s 元）</string>
+    <string name="detail_empty_bills">还没有任何账单</string>
+    <string name="stats_total_label">共 %1$d 笔</string>
+    <string name="detail_paid_at">已付时间 %1$s</string>
 </resources>

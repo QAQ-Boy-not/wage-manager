@@ -33,9 +33,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @TypeConverters(DateTimeConverters::class)
 abstract class AppDatabase : RoomDatabase() {
 
-    abstract fun workerDao(): WorkerDao
-    abstract fun wageRecordDao(): WageRecordDao
-    abstract fun worksiteDao(): WorksiteDao   // V1.3 新增
+    // Dao 是 internal（同 module 内 Repository 才能调），所以 abstract fun 也必须 internal
+    internal abstract fun workerDao(): WorkerDao
+    internal abstract fun wageRecordDao(): WageRecordDao
+    internal abstract fun worksiteDao(): WorksiteDao
 
     companion object {
         private const val DB_NAME = "wage_manager.db"

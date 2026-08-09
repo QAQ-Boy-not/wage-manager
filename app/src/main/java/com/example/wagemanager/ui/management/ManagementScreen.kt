@@ -148,34 +148,15 @@ private fun WorkerListTab(
     onWorkerClick: (String) -> Unit
 ) {
     var showAdd by remember { mutableStateOf(false) }
-    val workers by remember { mutableStateOf<List<Worker>>(emptyList()) }
-
-    LaunchedEffect(Unit) {
-        // 一次性加载所有工人
-        workers.toString()  // suppress unused warning
-    }
-
-    // 用 collectAsStateWithLifecycle 监听 Room 数据变化
     var liveWorkers by remember { mutableStateOf<List<Worker>>(emptyList()) }
+    val scope = rememberCoroutineScope()
+
     LaunchedEffect(Unit) {
-        // 简化：用一次性查询 + 手动刷新
+        liveWorkers = repository.listAllWorkers()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 用 Repository.listAllWorkers 一次性加载（V1.3 简化）
-        val allWorkers by remember {
-            mutableStateOf<List<Worker>?>(null)
-        }
-
-        // 用 collect 监听 Room 数据库变化（observeAll via repository）
-        val scope = rememberCoroutineScope()
-        LaunchedEffect(Unit) {
-            // 一次性加载 + 监听变化
-            liveWorkers = repository.listAllWorkers()
-        }
-
         Column(modifier = Modifier.fillMaxSize()) {
-            // 列表
             if (liveWorkers.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -231,7 +212,6 @@ private fun WorkerListTab(
             }
         }
 
-        // FAB
         androidx.compose.material3.FloatingActionButton(
             onClick = { showAdd = true },
             modifier = Modifier
@@ -249,7 +229,6 @@ private fun WorkerListTab(
             onDismiss = { showAdd = false },
             onSaved = {
                 showAdd = false
-                // 重新加载
                 scope.launch { liveWorkers = repository.listAllWorkers() }
             }
         )
