@@ -308,7 +308,6 @@ private fun DetailTopBar(workerName: String, onBack: () -> Unit) {
                 color = colorResource(R.color.wage_text_primary)
             )
         }
-        )
     }
 }
 
