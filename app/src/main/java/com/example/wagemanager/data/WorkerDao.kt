@@ -40,4 +40,16 @@ internal interface WorkerDao {
         """
     )
     suspend fun findByExactName(name: String): List<Worker>
+
+    /**
+     * 一次性查所有工人（按首次登记日期升序）。
+     * V1.3 工人选择器用，预期工人数量 < 100。
+     */
+    @Query(
+        """
+        SELECT * FROM workers
+        ORDER BY first_work_date ASC, id ASC
+        """
+    )
+    suspend fun findAll(): List<Worker>
 }

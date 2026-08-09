@@ -73,6 +73,9 @@ class WageRepository(
     suspend fun findWorkerById(workerId: String): Worker? =
         workerDao.findById(workerId)
 
+    /** 一次性查所有工人（V1.3 批量添加 + 工人选择器用） */
+    suspend fun listAllWorkers(): List<Worker> = workerDao.findAll()
+
     // ============== V1.3：同名处理（强制改名） ==============
 
     /**
