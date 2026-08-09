@@ -1,28 +1,23 @@
-// RegisterBillSheet.kt - 添加账单 BottomSheet（V1.2 工人模型）
+// RegisterBillSheet.kt - 单笔添加/编辑账单 BottomSheet（V1.3）
 //
-// 设计要点：
-// 1. ModalBottomSheet：Compose 标准的"半屏弹窗"
-// 2. 金额输入框默认焦点 + Decimal 键盘
-// 3. 姓名输入框失焦触发同名查重
-// 4. 同名查重（V1.2 简化版）：弹"切换到该工人 / 改名新建"对话框，无二次确认
-// 5. 成功反馈条"✅ 已添加 张姐 280元"，2 秒自动消失，支持连续登记多笔
-// 6. 备注 / 地点字段 M3 才有 schema 字段，先不显示
+// 职责（V1.3）：
+// - 单笔添加 / 编辑账单（工人详情页 [+ 订单] / 操作菜单 ✏️ 编辑）
+// - 输入框：姓名 + 金额
+// - V1.3 同名强制改名：UI 层只做基础校验（名字非空、金额合法）；
+//   真正的同名校验在 repository.registerBill 里抛 DuplicateNameException。
+//   本组件暂不展示 DuplicateNameException 错误（TODO：M2.x 加输入框标红）
+// - 成功反馈条 + 自动清空
 
 package com.example.wagemanager.ui.worker
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -41,7 +36,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
@@ -51,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.wagemanager.R
 import com.example.wagemanager.data.WageRepository
-import com.example.wagemanager.data.Worker
 import com.example.wagemanager.ui.components.BigButton
 import com.example.wagemanager.util.MoneyUtils
 import kotlinx.coroutines.delay
@@ -59,42 +52,54 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 /**
- * 添加账单表单状态
+ * 单笔添加/编辑表单状态
  */
 private data class BillFormState(
     val workDate: LocalDate = LocalDate.now(),
     val nameInput: String = "",
     val wageInput: String = "",
     val wageError: MoneyUtils.WageError? = null,
-    val nameError: NameError? = null,
-    val duplicateWorkers: List<Worker> = emptyList(),
-    val isDuplicateDialogVisible: Boolean = false,
-    val selectedExistingWorkerId: String? = null,
     val isSaving: Boolean = false,
     val successMessage: String? = null
-) {
-    enum class NameError { REQUIRED }
-}
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterBillSheet(
     repository: WageRepository,
+    initialName: String? = null,
+    editingBill: BillItem? = null,
+    @Suppress("UNUSED_PARAMETER") editingBillId: Long? = null,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val focusManager = LocalFocusManager.current
-    val nameFocusRequester = remember { FocusRequester() }
     val wageFocusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
 
-    var form by remember { mutableStateOf(BillFormState()) }
+    val isEditMode = editingBill != null
+    val initialWageInput = editingBill?.let {
+        val yuan = it.wageCent.toDouble() / 100.0
+        if (yuan == yuan.toLong().toDouble()) yuan.toLong().toString()
+        else "%.2f".format(yuan)
+    } ?: ""
 
-    // 提交逻辑：调 repository.registerBill
+    var form by remember {
+        mutableStateOf(
+            BillFormState(
+                workDate = editingBill?.workDate ?: LocalDate.now(),
+                nameInput = initialName.orEmpty(),
+                wageInput = initialWageInput
+            )
+        )
+    }
+
     fun submit() {
         val name = form.nameInput.trim()
         if (name.isEmpty()) {
-            form = form.copy(nameError = BillFormState.NameError.REQUIRED)
+            // 同名校验在 Repository 里抛 DuplicateNameException；
+            // 这里只做基础非空校验
+            // TODO: 捕获 DuplicateNameException 显示 error_duplicate_name
             return
         }
         val parse = MoneyUtils.parseWageCent(form.wageInput)
@@ -102,28 +107,34 @@ fun RegisterBillSheet(
             form = form.copy(wageError = parse.error)
             return
         }
-        // 同名但用户还没决定
-        if (form.duplicateWorkers.isNotEmpty() && form.selectedExistingWorkerId == null) {
-            form = form.copy(isDuplicateDialogVisible = true)
-            return
-        }
 
         form = form.copy(isSaving = true)
         scope.launch {
             try {
-                repository.registerBill(
-                    name = name,
-                    wageCent = parse.wageCent,
-                    workDate = form.workDate,
-                    existingWorkerId = form.selectedExistingWorkerId
-                )
-                val msg = "✅ 已添加：$name ${MoneyUtils.formatCent(parse.wageCent)}元"
-                // 清空表单（保留日期）准备下一笔
-                form = BillFormState(
-                    workDate = form.workDate,
-                    successMessage = msg
-                )
-                // 2 秒后清空反馈
+                if (isEditMode && editingBill != null) {
+                    repository.updateWage(
+                        recordId = editingBill.recordId,
+                        name = name,
+                        wageCent = parse.wageCent,
+                        worksiteId = null,
+                        notes = null
+                    )
+                    val msg = "✅ 已修改：$name ${MoneyUtils.formatCent(parse.wageCent)}元"
+                    form = BillFormState(successMessage = msg)
+                } else {
+                    repository.registerBill(
+                        name = name,
+                        wageCent = parse.wageCent,
+                        workDate = form.workDate,
+                        worksiteId = null,
+                        notes = null
+                    )
+                    val msg = "✅ 已添加：$name ${MoneyUtils.formatCent(parse.wageCent)}元"
+                    form = BillFormState(
+                        workDate = form.workDate,
+                        successMessage = msg
+                    )
+                }
                 scope.launch {
                     delay(2_000)
                     form = form.copy(successMessage = null)
@@ -131,7 +142,7 @@ fun RegisterBillSheet(
             } catch (e: Exception) {
                 form = form.copy(
                     isSaving = false,
-                    successMessage = "❌ 添加失败：${e.message ?: "未知错误"}"
+                    successMessage = "❌ 失败：${e.message ?: "未知错误"}"
                 )
                 scope.launch {
                     delay(2_000)
@@ -152,7 +163,10 @@ fun RegisterBillSheet(
         ) {
             // 标题
             Text(
-                text = stringResource(R.string.bill_register_title),
+                text = stringResource(
+                    if (isEditMode) R.string.bill_edit_title
+                    else R.string.bill_register_title
+                ),
                 style = MaterialTheme.typography.headlineMedium
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -179,7 +193,7 @@ fun RegisterBillSheet(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // 日期（M1 写死今天，M4 加日期选择器）
+            // 日期
             Text(
                 text = stringResource(R.string.bill_field_work_date, form.workDate.toString()),
                 fontSize = 16.sp,
@@ -194,44 +208,16 @@ fun RegisterBillSheet(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 工人姓名
+            // 工人姓名（编辑模式不可改；新建模式可改 + 同名强制改名）
             OutlinedTextField(
                 value = form.nameInput,
-                onValueChange = { value ->
-                    form = form.copy(
-                        nameInput = value,
-                        nameError = null,
-                        selectedExistingWorkerId = null,
-                        duplicateWorkers = emptyList(),
-                        isDuplicateDialogVisible = false
-                    )
-                },
+                onValueChange = { form = form.copy(nameInput = it) },
                 label = { Text(stringResource(R.string.bill_field_worker_name)) },
-                isError = form.nameError != null,
-                supportingText = {
-                    if (form.nameError == BillFormState.NameError.REQUIRED) {
-                        Text(stringResource(R.string.error_name_required))
-                    }
-                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .focusRequester(nameFocusRequester)
-                    .onFocusChanged { focusState ->
-                        if (!focusState.isFocused) {
-                            // 失焦查同名
-                            val name = form.nameInput.trim()
-                            if (name.isNotEmpty()) {
-                                scope.launch {
-                                    val duplicates = repository.findWorkersByExactName(name)
-                                    form = form.copy(
-                                        duplicateWorkers = duplicates,
-                                        isDuplicateDialogVisible = duplicates.isNotEmpty()
-                                    )
-                                }
-                            }
-                        }
-                    },
+                    .onFocusChanged { /* 同名校验移到 Repository */ },
                 singleLine = true,
+                enabled = !isEditMode,
                 textStyle = MaterialTheme.typography.bodyLarge
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -260,7 +246,6 @@ fun RegisterBillSheet(
                                     MoneyUtils.WageError.REQUIRED -> R.string.error_wage_required
                                     MoneyUtils.WageError.INVALID_FORMAT -> R.string.error_wage_invalid_format
                                     MoneyUtils.WageError.MUST_BE_POSITIVE -> R.string.error_wage_must_be_positive
-                                    MoneyUtils.WageError.OUT_OF_RANGE -> R.string.error_wage_out_of_range
                                     else -> R.string.error_wage_invalid_format
                                 }
                             )
@@ -277,9 +262,12 @@ fun RegisterBillSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 添加 / 取消
+            // 提交 / 取消
             BigButton(
-                text = stringResource(R.string.bill_action_add),
+                text = stringResource(
+                    if (isEditMode) R.string.bill_action_save
+                    else R.string.bill_action_add
+                ),
                 backgroundColor = MaterialTheme.colorScheme.primary,
                 enabled = !form.isSaving,
                 onClick = {
@@ -292,138 +280,18 @@ fun RegisterBillSheet(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = stringResource(R.string.action_cancel),
-                    fontSize = 20.sp
-                )
+                Text(text = stringResource(R.string.action_cancel), fontSize = 20.sp)
             }
-
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
 
-    // ===== 同名对话框（V1.2 简化） =====
-    if (form.isDuplicateDialogVisible && form.duplicateWorkers.isNotEmpty()) {
-        DuplicateWorkerDialog(
-            workerName = form.nameInput.trim(),
-            duplicates = form.duplicateWorkers,
-            onUseExisting = { workerId ->
-                form = form.copy(
-                    selectedExistingWorkerId = workerId,
-                    isDuplicateDialogVisible = false
-                )
-            },
-            onRenameAndCreate = {
-                form = form.copy(
-                    isDuplicateDialogVisible = false,
-                    selectedExistingWorkerId = null
-                )
-            }
-        )
-    }
-
-    // 焦点管理
-    LaunchedEffect(form.successMessage) {
-        val msg = form.successMessage
-        if (msg != null && msg.startsWith("✅")) {
-            // 成功 → 焦点回到姓名框
-            try {
-                delay(50)
-                nameFocusRequester.requestFocus()
-            } catch (_: Exception) {}
-        }
-    }
-
+    // 默认焦点在金额框（新建模式）
     LaunchedEffect(Unit) {
-        if (form.successMessage == null) {
+        if (!isEditMode && form.successMessage == null) {
             try {
                 wageFocusRequester.requestFocus()
             } catch (_: Exception) {}
         }
-    }
-}
-
-/**
- * 同名工人对话框（V1.2 简化版）
- *
- * 两个按钮：
- * - "切换到该工人"（绿色）→ 用已存在 worker_id
- * - "改名新建"（红色）→ 关闭弹窗，用户继续改输入框
- */
-@Composable
-private fun DuplicateWorkerDialog(
-    workerName: String,
-    duplicates: List<Worker>,
-    onUseExisting: (String) -> Unit,
-    onRenameAndCreate: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onRenameAndCreate,
-        title = {
-            Text(
-                text = stringResource(R.string.dialog_duplicate_title, workerName),
-                fontSize = 22.sp
-            )
-        },
-        text = {
-            Column {
-                Text(
-                    text = stringResource(R.string.dialog_duplicate_message),
-                    fontSize = 18.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                duplicates.forEach { worker ->
-                    DuplicateCandidateRow(
-                        worker = worker,
-                        onClick = { onUseExisting(worker.id) }
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onUseExisting(duplicates.first().id) }) {
-                Text(
-                    text = stringResource(R.string.action_use_existing),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colorResource(R.color.wage_paid_green)
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onRenameAndCreate) {
-                Text(
-                    text = stringResource(R.string.action_rename_and_create),
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-        }
-    )
-}
-
-@Composable
-private fun DuplicateCandidateRow(
-    worker: Worker,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp, horizontal = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = worker.name,
-            fontSize = 20.sp,
-            modifier = Modifier.size(width = 200.dp, height = 28.dp)
-        )
-        val tail = worker.id.takeLast(4)
-        Text(
-            text = "...$tail",
-            fontSize = 16.sp,
-            color = Color.Gray
-        )
     }
 }

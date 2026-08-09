@@ -3,33 +3,56 @@
 <resources>
     <string name="app_name">零活工人</string>
 
-    <!-- 工人列表（首页） -->
-    <string name="empty_workers_hint">还没有工人</string>
-    <string name="empty_workers_action_hint">点击右下角 ➕ 添加第一笔账单</string>
+    <!-- 首页（按工人聚合） -->
     <string name="stats_unpaid_count">未付 %1$d 笔</string>
     <string name="stats_paid_count">已付 %1$d 笔</string>
-    <string name="worker_card_unpaid">🔴 未付 %1$d 笔 / %2$s 元</string>
-    <string name="worker_card_paid">🟢 已付 %1$d 笔 / %2$s 元</string>
-    <string name="worker_card_latest">最近出工：%1$s</string>
+    <string name="tab_unpaid">🔴 未付（%1$d）</string>
+    <string name="tab_paid">🟢 已付（%1$d）</string>
 
     <!-- 工人详情页 -->
-    <string name="worker_not_found">工人不存在或已删除</string>
     <string name="detail_first_work_date">首次登记：%1$s</string>
-    <string name="stats_total_label">共 %1$d 笔</string>
-    <string name="detail_group_unpaid">🔴 未付（%1$d 笔 / %2$s 元）</string>
-    <string name="detail_group_paid">🟢 已付（%1$d 笔 / %2$s 元）</string>
-    <string name="detail_empty_bills">还没有任何账单</string>
-    <string name="detail_paid_at">已付时间 %1$s</string>
+    <string name="detail_total_label">共 %1$d 笔</string>
+    <string name="detail_total_cents">%1$s 元</string>
 
-    <!-- 添加账单 -->
+    <!-- 批量添加账单 -->
+    <string name="batch_add_title">批量添加账单</string>
+    <string name="batch_field_worksite">工区</string>
+    <string name="batch_field_wage">每人金额（元）</string>
+    <string name="batch_field_notes">备注（可选，所有订单共用）</string>
+    <string name="batch_field_select_workers">选择工人</string>
+    <string name="batch_field_no_worker">未选择工人</string>
+    <string name="batch_action_submit">✅ 批量添加 %1$d 人</string>
+
+    <!-- 单笔添加 / 编辑账单（工人详情页 [+ 订单]） -->
     <string name="bill_register_title">添加账单</string>
+    <string name="bill_edit_title">编辑账单</string>
     <string name="bill_field_work_date">出工日期：%1$s</string>
     <string name="bill_field_worker_name">工人姓名</string>
     <string name="bill_field_wage">工资金额（元）</string>
+    <string name="bill_field_worksite">工区</string>
+    <string name="bill_field_notes">备注（可选）</string>
     <string name="bill_action_add">✅ 添加</string>
+    <string name="bill_action_save">✅ 保存</string>
+
+    <!-- 账单操作 -->
+    <string name="action_mark_paid">✅ 标记已付</string>
+    <string name="action_revoke_payment">↩️ 撤销付款</string>
+    <string name="action_delete_record">🗑️ 删除记录</string>
+    <string name="action_edit_bill">✏️ 编辑账单</string>
+
+    <!-- 操作菜单 / 二次确认对话框 -->
+    <string name="dialog_action_menu_title">「%1$s」的操作</string>
+    <string name="dialog_action_menu_message">请选择要执行的操作</string>
+    <string name="dialog_mark_paid_title">确认标记已付？</string>
+    <string name="dialog_mark_paid_message">「%1$s」%2$s 元，确认标记为已付吗？</string>
+    <string name="dialog_revoke_title">确认撤销付款？</string>
+    <string name="dialog_revoke_message">「%1$s」已标记为已付，撤销后将变回未付状态</string>
+    <string name="dialog_delete_title">确认删除？</string>
+    <string name="dialog_delete_message">「%1$s」%2$s 元，确认删除这条记录吗？删除后无法恢复</string>
 
     <!-- 通用 -->
     <string name="action_cancel">取消</string>
+    <string name="action_close">关闭</string>
 
     <!-- 错误提示 -->
     <string name="error_name_required">请输入工人姓名</string>
@@ -38,9 +61,14 @@
     <string name="error_wage_must_be_positive">金额必须大于 0</string>
     <string name="error_wage_out_of_range">金额超出范围</string>
 
-    <!-- 同名对话框（V1.2 简化版：无二次确认） -->
-    <string name="dialog_duplicate_title">「%1$s」已存在</string>
-    <string name="dialog_duplicate_message">是否切换到该工人新增一张账单？</string>
-    <string name="action_use_existing">切换到该工人</string>
-    <string name="action_rename_and_create">改名新建</string>
+    <!-- 同名处理（V1.3 强制改名） -->
+    <string name="error_duplicate_name">已存在「%1$s」，请改名</string>
+
+    <!-- WorkerDetailScreen 缺失的 string -->
+    <string name="worker_not_found">工人不存在或已删除</string>
+    <string name="detail_group_unpaid">🔴 未付（%1$d 笔 / %2$s 元）</string>
+    <string name="detail_group_paid">🟢 已付（%1$d 笔 / %2$s 元）</string>
+    <string name="detail_empty_bills">还没有任何账单</string>
+    <string name="stats_total_label">共 %1$d 笔</string>
+    <string name="detail_paid_at">已付时间 %1$s</string>
 </resources>
