@@ -154,13 +154,6 @@ fun RegisterBillSheet(
             }
         }
     }
-                scope.launch {
-                    delay(2_000)
-                    form = form.copy(successMessage = null)
-                }
-            }
-        }
-    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
