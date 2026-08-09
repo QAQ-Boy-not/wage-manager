@@ -25,6 +25,7 @@
     <string name="field_wage_today">今日工资（元）</string>
     <string name="action_confirm_register">✅ 登记</string>
     <string name="action_save_edit">✅ 保存</string>
+    <string name="action_finish">完成</string>
     <string name="action_cancel">取消</string>
 
     <!-- 错误提示 -->
@@ -34,15 +35,11 @@
     <string name="error_wage_must_be_positive">金额必须大于 0</string>
     <string name="error_wage_out_of_range">金额超出范围</string>
 
-    <!-- 同名复用对话框 -->
-    <string name="dialog_duplicate_title">已存在同名工人「%1$s」</string>
-    <string name="dialog_duplicate_message">请选择"复用"已有工人，或"新建"一个同名工人</string>
-    <string name="action_reuse_worker">复用该工人</string>
-    <string name="action_create_new_worker">新建同名工人</string>
-
-    <!-- 新建同名工人二次确认 -->
-    <string name="dialog_confirm_new_worker_title">确认新建同名工人？</string>
-    <string name="dialog_confirm_new_worker_message">将新建一个名为「%1$s」的工人，与已有同名工人独立区分</string>
+    <!-- 同名对话框（M2.1 简化：去掉二次确认） -->
+    <string name="dialog_duplicate_title">「%1$s」已存在</string>
+    <string name="dialog_duplicate_message">是否切换到该工人新增一条工资记录？</string>
+    <string name="action_use_existing">切换到该工人</string>
+    <string name="action_rename_and_create">改名新建</string>
     <string name="action_confirm">确认</string>
 
     <!-- 工资卡片上的操作 -->

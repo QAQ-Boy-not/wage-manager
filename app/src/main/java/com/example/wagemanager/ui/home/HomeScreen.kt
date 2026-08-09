@@ -58,11 +58,9 @@ data class HomeScreenCallbacks(
     val onWageInputChange: (String) -> Unit,
     val onRegisterSubmit: () -> Unit,
     val onRegisterDismiss: () -> Unit,
-    val onReuseWorker: (String) -> Unit,
-    val onCreateNewWorker: () -> Unit,
-    val onConfirmCreateNewWorker: () -> Unit,
-    val onDuplicateDialogDismiss: () -> Unit,
-    val onConfirmNewWorkerDialogDismiss: () -> Unit
+    val onUseExistingWorker: (String) -> Unit,
+    val onRenameAndCreate: () -> Unit,
+    val onDuplicateDialogDismiss: () -> Unit
 )
 
 @Composable
@@ -164,11 +162,9 @@ fun HomeScreen(
         onWageInputChange = callbacks.onWageInputChange,
         onSubmit = callbacks.onRegisterSubmit,
         onDismiss = callbacks.onRegisterDismiss,
-        onReuseWorker = callbacks.onReuseWorker,
-        onCreateNewWorker = callbacks.onCreateNewWorker,
-        onConfirmCreateNewWorker = callbacks.onConfirmCreateNewWorker,
-        onDuplicateDialogDismiss = callbacks.onDuplicateDialogDismiss,
-        onConfirmNewWorkerDialogDismiss = callbacks.onConfirmNewWorkerDialogDismiss
+        onUseExistingWorker = callbacks.onUseExistingWorker,
+        onRenameAndCreate = callbacks.onRenameAndCreate,
+        onDuplicateDialogDismiss = callbacks.onDuplicateDialogDismiss
     )
 
     // ===== 长按操作菜单 =====

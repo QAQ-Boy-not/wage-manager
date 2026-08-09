@@ -1,4 +1,4 @@
-// HomeViewModel.kt - 首页 ViewModel + 状态机（M2 完整版）
+// HomeViewModel.kt - 首页 ViewModel + 状态机（M2.1 简化版）
 //
 // 状态分层：
 // - HomeUiState：首页整体（日期、tab 选中、记录列表、汇总、表单、操作菜单、二次确认）
@@ -6,7 +6,11 @@
 // - HomeEvent：一次性事件（Toast / 关闭），用 Channel 发出避免旋转重显
 //
 // 关键状态机：
-// 1. 同名查重（M1 已有）
+// 1. 同名查重（M2.1 简化）：失焦后查同名
+//    - 0 条 → 允许提交（existingWorkerId = null）
+//    - ≥1 条 → 弹"切换到该工人 / 改名新建"对话框
+//        - 切换：existingWorkerId = 选中 worker.id，直接提交
+//        - 改名新建：关闭弹窗，用户继续改输入框
 // 2. 标签切换：isPaidTab = false 未付 / true 已付
 // 3. 操作菜单（长按已付项）：actionMenuRecordId 决定显示哪个记录的操作菜单
 // 4. 二次确认：pendingConfirmAction 决定弹哪个操作的确认对话框
@@ -21,7 +25,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.example.wagemanager.data.ManualWorkerChoice
 import com.example.wagemanager.data.WageRecordWithWorker
 import com.example.wagemanager.data.WageRepository
 import com.example.wagemanager.data.Worker
@@ -59,7 +62,17 @@ data class HomeWageItem(
 )
 
 /**
- * 登记 / 编辑 BottomSheet 共用表单状态
+ * 登记 / 编辑 BottomSheet 共用表单状态（M2.1 简化 + 支持连续登记）
+ *
+ * 同名查重简化：
+ * - duplicateWorkers：同名候选（失焦后填充）
+ * - isDuplicateDialogVisible：是否弹"切换 / 改名"对话框
+ * - selectedExistingWorkerId：用户选"切换到该工人"后的目标 worker_id
+ * - 删除了 isCreateDuplicateConfirmed（二次确认）和 sealed ManualWorkerChoice
+ *
+ * 连续登记（M2.1）：
+ * - lastSuccessMessage：登记成功后的反馈（2 秒后自动清空）
+ * - 登记成功后表单不关闭，姓名/工资清空，等待下一笔
  */
 data class RegisterFormState(
     val isVisible: Boolean = false,
@@ -70,21 +83,17 @@ data class RegisterFormState(
     val wageError: MoneyUtils.WageError? = null,
     val nameError: NameError? = null,
     val duplicateWorkers: List<Worker> = emptyList(),
-    val selectedReuseWorkerId: String? = null,
-    val isCreateDuplicateConfirmed: Boolean = false,
     val isDuplicateDialogVisible: Boolean = false,
-    val isConfirmNewWorkerDialogVisible: Boolean = false,
-    val isSaving: Boolean = false
+    /** 用户选了"切换到该工人"的 worker_id；null = 还没决定（弹窗还在）或同名但要新建 */
+    val selectedExistingWorkerId: String? = null,
+    val isSaving: Boolean = false,
+    /** 最近一次登记成功的反馈，2 秒后自动清空；用户也可以点"记下一笔"立刻清空 */
+    val lastSuccessMessage: String? = null
 ) {
     enum class NameError { REQUIRED }
 
-    fun resolvedWorkerChoice(): ManualWorkerChoice? {
-        return when {
-            duplicateWorkers.isEmpty() && !isDuplicateDialogVisible -> ManualWorkerChoice.CreateNew
-            selectedReuseWorkerId != null -> ManualWorkerChoice.Reuse(selectedReuseWorkerId!!)
-            isCreateDuplicateConfirmed -> ManualWorkerChoice.CreateNew
-            else -> null
-        }
+    fun resolvedExistingWorkerId(): String? {
+        return selectedExistingWorkerId
     }
 }
 
@@ -92,12 +101,12 @@ data class RegisterFormState(
  * 长按操作菜单选项（仅已付记录显示）
  */
 enum class ActionOption {
-    REVOKE_PAYMENT,   // 撤销付款
-    DELETE_RECORD     // 删除记录
+    REVOKE_PAYMENT,
+    DELETE_RECORD
 }
 
 /**
- * 待二次确认的操作（点击操作按钮后弹 AlertDialog 确认）
+ * 待二次确认的操作
  */
 sealed interface PendingConfirmAction {
     data class MarkPaid(val recordId: Long) : PendingConfirmAction
@@ -117,9 +126,7 @@ data class HomeUiState(
     val paidCount: Int = 0,
     val recordCount: Int = 0,
     val registerForm: RegisterFormState = RegisterFormState(),
-    /** 长按哪个记录弹出操作菜单（仅已付项支持） */
     val actionMenuRecordId: Long? = null,
-    /** 待二次确认的操作（AlertDialog 用） */
     val pendingConfirmAction: PendingConfirmAction? = null
 )
 
@@ -127,13 +134,11 @@ data class HomeUiState(
  * 一次性事件
  */
 sealed interface HomeEvent {
-    // 登记 / 编辑
     data class RegisterSuccess(val workerName: String, val wageCent: Long) : HomeEvent
     data class EditSuccess(val recordId: Long, val workerName: String, val wageCent: Long) : HomeEvent
     data class OperationFailed(val message: String) : HomeEvent
     data class WageInputError(val error: MoneyUtils.WageError) : HomeEvent
     data object NameRequired : HomeEvent
-    // 标记 / 撤销 / 删除
     data class MarkPaidSuccess(val recordId: Long) : HomeEvent
     data class RevokeSuccess(val recordId: Long) : HomeEvent
     data class DeleteSuccess(val recordId: Long) : HomeEvent
@@ -161,9 +166,6 @@ class HomeViewModel(
             initialValue = emptyList()
         )
 
-    /**
-     * 首页 UI 状态（合并 workDate、Room 数据流、表单状态、tab、菜单、确认）
-     */
     val uiState: StateFlow<HomeUiState> = combine(
         combine(_workDate, _isPaidTab, _actionMenuRecordId, _pendingConfirmAction) { wd, tab, menu, pending ->
             Tuple4(wd, tab, menu, pending)
@@ -211,7 +213,7 @@ class HomeViewModel(
         _isPaidTab.value = toPaidTab
     }
 
-    // ===== 登记流程（Create 模式） =====
+    // ===== 登记流程 =====
 
     fun onManualRegisterClick() {
         _registerForm.value = RegisterFormState(isVisible = true, mode = FormMode.Create)
@@ -226,11 +228,9 @@ class HomeViewModel(
             it.copy(
                 workerName = value,
                 nameError = null,
-                selectedReuseWorkerId = null,
-                isCreateDuplicateConfirmed = false,
+                selectedExistingWorkerId = null,
                 duplicateWorkers = emptyList(),
-                isDuplicateDialogVisible = false,
-                isConfirmNewWorkerDialogVisible = false
+                isDuplicateDialogVisible = false
             )
         }
     }
@@ -246,6 +246,11 @@ class HomeViewModel(
         _registerForm.update { it.copy(wageInput = filtered, wageError = null) }
     }
 
+    /**
+     * 失焦时触发同名查重。
+     * 0 同名 → 不弹窗（直接允许 CreateNew 提交）
+     * ≥1 同名 → 弹"切换到该工人 / 改名新建"对话框
+     */
     fun onWorkerNameFocusLost() {
         val form = _registerForm.value
         val name = form.workerName.trim()
@@ -255,56 +260,33 @@ class HomeViewModel(
             _registerForm.update {
                 it.copy(
                     duplicateWorkers = duplicates,
-                    isDuplicateDialogVisible = duplicates.isNotEmpty()
+                    isDuplicateDialogVisible = duplicates.isNotEmpty(),
+                    selectedExistingWorkerId = null
                 )
             }
         }
     }
 
-    fun onReuseWorker(workerId: String) {
+    /**
+     * 用户在同名对话框里选了"切换到该工人"。
+     */
+    fun onUseExistingWorker(workerId: String) {
         _registerForm.update {
             it.copy(
-                selectedReuseWorkerId = workerId,
+                selectedExistingWorkerId = workerId,
                 isDuplicateDialogVisible = false
             )
         }
     }
 
-    fun onCreateDuplicateWorkerClick() {
+    /**
+     * 用户在同名对话框里选了"改名新建"（关闭弹窗，用户继续改输入框）。
+     */
+    fun onRenameAndCreate() {
         _registerForm.update {
             it.copy(
                 isDuplicateDialogVisible = false,
-                isConfirmNewWorkerDialogVisible = true
-            )
-        }
-    }
-
-    fun onCreateDuplicateWorkerConfirm() {
-        _registerForm.update {
-            it.copy(
-                isCreateDuplicateConfirmed = true,
-                isConfirmNewWorkerDialogVisible = false
-            )
-        }
-    }
-
-    fun onDuplicateDialogDismiss() {
-        _registerForm.update {
-            it.copy(
-                isDuplicateDialogVisible = false,
-                isConfirmNewWorkerDialogVisible = false,
-                selectedReuseWorkerId = null,
-                isCreateDuplicateConfirmed = false
-            )
-        }
-    }
-
-    fun onConfirmNewWorkerDialogDismiss() {
-        _registerForm.update {
-            it.copy(
-                isConfirmNewWorkerDialogVisible = false,
-                isCreateDuplicateConfirmed = false,
-                isDuplicateDialogVisible = true
+                selectedExistingWorkerId = null
             )
         }
     }
@@ -329,11 +311,9 @@ class HomeViewModel(
             return
         }
 
-        val choice = form.resolvedWorkerChoice()
-        if (choice == null) {
-            _registerForm.update {
-                it.copy(isDuplicateDialogVisible = form.duplicateWorkers.isNotEmpty())
-            }
+        // 同名但用户没决定：强制弹对话框
+        if (form.duplicateWorkers.isNotEmpty() && form.selectedExistingWorkerId == null) {
+            _registerForm.update { it.copy(isDuplicateDialogVisible = true) }
             return
         }
 
@@ -345,10 +325,27 @@ class HomeViewModel(
                     name = name,
                     wageCent = parse.wageCent,
                     workDate = _workDate.value,
-                    workerChoice = choice
+                    existingWorkerId = form.resolvedExistingWorkerId()
                 )
                 events.send(HomeEvent.RegisterSuccess(name, parse.wageCent))
-                _registerForm.value = RegisterFormState()
+                // 不关闭 BottomSheet；清空姓名/工资/同名状态，保留反馈
+                val successMsg = "✅ 已登记：$name ${MoneyUtils.formatCent(parse.wageCent)}元"
+                _registerForm.update {
+                    it.copy(
+                        workerName = "",
+                        wageInput = "",
+                        wageError = null,
+                        nameError = null,
+                        duplicateWorkers = emptyList(),
+                        isDuplicateDialogVisible = false,
+                        selectedExistingWorkerId = null,
+                        isSaving = false,
+                        lastSuccessMessage = successMsg
+                    )
+                }
+                // 2 秒后自动清空反馈条
+                kotlinx.coroutines.delay(2_000)
+                _registerForm.update { it.copy(lastSuccessMessage = null) }
             } catch (e: Exception) {
                 events.send(HomeEvent.OperationFailed(e.message ?: "登记失败"))
                 _registerForm.update { it.copy(isSaving = false) }
@@ -362,7 +359,7 @@ class HomeViewModel(
         _pendingConfirmAction.value = PendingConfirmAction.MarkPaid(recordId)
     }
 
-    // ===== 操作菜单（仅已付项长按） =====
+    // ===== 操作菜单 =====
 
     fun onActionMenuShow(recordId: Long) {
         _actionMenuRecordId.value = recordId
@@ -375,12 +372,10 @@ class HomeViewModel(
     fun onActionSelected(recordId: Long, option: ActionOption) {
         _actionMenuRecordId.value = null
         when (option) {
-            ActionOption.REVOKE_PAYMENT -> {
+            ActionOption.REVOKE_PAYMENT ->
                 _pendingConfirmAction.value = PendingConfirmAction.RevokePayment(recordId)
-            }
-            ActionOption.DELETE_RECORD -> {
+            ActionOption.DELETE_RECORD ->
                 _pendingConfirmAction.value = PendingConfirmAction.DeleteRecord(recordId)
-            }
         }
     }
 
@@ -432,7 +427,6 @@ class HomeViewModel(
                 events.send(HomeEvent.OperationFailed("已付款记录不可编辑，请先撤销付款"))
                 return@launch
             }
-            // 元 → 分的转换：用 BigDecimal 反向
             val yuan = record.record.wageCent.toDouble() / 100.0
             val wageInput = if (yuan == yuan.toLong().toDouble()) {
                 yuan.toLong().toString()
@@ -464,17 +458,18 @@ class HomeViewModel(
             _registerForm.update { it.copy(wageError = parse.error) }
             return
         }
-        val choice = form.resolvedWorkerChoice()
-        if (choice == null) {
-            _registerForm.update {
-                it.copy(isDuplicateDialogVisible = form.duplicateWorkers.isNotEmpty())
-            }
+        // 同名但还没决定
+        if (form.duplicateWorkers.isNotEmpty() && form.selectedExistingWorkerId == null) {
+            _registerForm.update { it.copy(isDuplicateDialogVisible = true) }
             return
         }
         _registerForm.update { it.copy(isSaving = true) }
         viewModelScope.launch {
             try {
-                val ok = repository.updateWage(recordId, name, parse.wageCent, choice)
+                val ok = repository.updateWage(
+                    recordId, name, parse.wageCent,
+                    existingWorkerId = form.resolvedExistingWorkerId()
+                )
                 if (ok) {
                     events.send(HomeEvent.EditSuccess(recordId, name, parse.wageCent))
                     _registerForm.value = RegisterFormState()

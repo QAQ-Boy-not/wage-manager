@@ -86,11 +86,9 @@ class MainActivity : ComponentActivity() {
                         onWorkerNameChange = viewModel::onWorkerNameChange,
                         onWorkerNameFocusLost = viewModel::onWorkerNameFocusLost,
                         onWageInputChange = viewModel::onWageInputChange,
-                        onReuseWorker = viewModel::onReuseWorker,
-                        onCreateNewWorker = viewModel::onCreateDuplicateWorkerClick,
-                        onConfirmCreateNewWorker = viewModel::onCreateDuplicateWorkerConfirm,
+                        onUseExistingWorker = viewModel::onUseExistingWorker,
+                        onRenameAndCreate = viewModel::onRenameAndCreate,
                         onDuplicateDialogDismiss = viewModel::onDuplicateDialogDismiss,
-                        onConfirmNewWorkerDialogDismiss = viewModel::onConfirmNewWorkerDialogDismiss,
                         // Tab / 卡片操作
                         onTabChange = viewModel::onTabChange,
                         onMarkPaidClick = viewModel::onMarkPaidClick,

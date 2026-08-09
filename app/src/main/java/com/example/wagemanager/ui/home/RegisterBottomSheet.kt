@@ -1,15 +1,15 @@
-// RegisterBottomSheet.kt - 手动登记 BottomSheet
+// RegisterBottomSheet.kt - 手动登记 BottomSheet（M2.1 简化 + 连续登记）
 //
-// 设计要点：
-// 1. ModalBottomSheet：Compose 标准的"半屏弹窗"
-// 2. 工资输入框默认焦点 + Decimal 键盘
-// 3. 姓名输入框失焦触发同名查重（onWorkerNameFocusLost）
-// 4. 同名候选弹 AlertDialog 让用户选"复用/新建"
-// 5. 选"新建同名工人"再弹一次确认对话框（防误重名）
-// 6. 表单 isSaving 时禁用提交按钮
+// 设计要点（M2.1）：
+// 1. 简化同名查重：弹"切换到该工人 / 改名新建"两个按钮（去掉二次确认）
+// 2. 连续登记：登记成功后 BottomSheet 不关闭，姓名/工资清空，光标回到姓名
+// 3. 反馈条：登记成功后顶部显示 2 秒"✅ 已登记：XXX"，明确反馈
+// 4. 按钮文案：[✅ 登记] [完成]（完成 = 关闭 BottomSheet，不再记了）
 
 package com.example.wagemanager.ui.home
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,21 +29,23 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.wagemanager.R
 import com.example.wagemanager.data.Worker
 import com.example.wagemanager.ui.components.BigButton
-import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.size
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,17 +56,16 @@ fun RegisterBottomSheet(
     onWageInputChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onDismiss: () -> Unit,
-    onReuseWorker: (String) -> Unit,
-    onCreateNewWorker: () -> Unit,
-    onConfirmCreateNewWorker: () -> Unit,
-    onDuplicateDialogDismiss: () -> Unit,
-    onConfirmNewWorkerDialogDismiss: () -> Unit
+    onUseExistingWorker: (String) -> Unit,
+    onRenameAndCreate: () -> Unit,
+    onDuplicateDialogDismiss: () -> Unit
 ) {
     if (!state.isVisible) return
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val focusManager = LocalFocusManager.current
-    val wageFocusRequester = androidx.compose.runtime.remember { FocusRequester() }
+    val nameFocusRequester = remember { FocusRequester() }
+    val wageFocusRequester = remember { FocusRequester() }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -73,7 +76,7 @@ fun RegisterBottomSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
-            // 标题：根据模式切换
+            // 标题
             Text(
                 text = stringResource(
                     if (state.mode == FormMode.Edit) R.string.edit_title
@@ -81,7 +84,25 @@ fun RegisterBottomSheet(
                 ),
                 style = MaterialTheme.typography.headlineMedium
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 反馈条：登记成功后 2 秒显示
+            if (state.lastSuccessMessage != null) {
+                Text(
+                    text = state.lastSuccessMessage,
+                    color = colorResource(R.color.wage_paid_green),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            color = colorResource(R.color.wage_card_background),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             // 工人姓名
             OutlinedTextField(
@@ -96,6 +117,7 @@ fun RegisterBottomSheet(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
+                    .focusRequester(nameFocusRequester)
                     .onFocusChanged { focusState ->
                         if (!focusState.isFocused) onWorkerNameFocusLost()
                     },
@@ -150,12 +172,13 @@ fun RegisterBottomSheet(
                 }
             )
             Spacer(modifier = Modifier.height(8.dp))
+            // 完成（关闭 BottomSheet）
             TextButton(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = stringResource(R.string.action_cancel),
+                    text = stringResource(R.string.action_finish),
                     fontSize = 20.sp
                 )
             }
@@ -164,77 +187,92 @@ fun RegisterBottomSheet(
         }
     }
 
-    // ===== 同名候选对话框 =====
+    // ===== 同名对话框（M2.1 简化版） =====
     if (state.isDuplicateDialogVisible && state.duplicateWorkers.isNotEmpty()) {
         DuplicateWorkerDialog(
             workerName = state.workerName.trim(),
             duplicates = state.duplicateWorkers,
-            onReuse = onReuseWorker,
-            onCreateNew = onCreateNewWorker,
+            onUseExisting = onUseExistingWorker,
+            onRenameAndCreate = onRenameAndCreate,
             onDismiss = onDuplicateDialogDismiss
         )
     }
 
-    // ===== 新建同名工人二次确认 =====
-    if (state.isConfirmNewWorkerDialogVisible) {
-        ConfirmNewWorkerDialog(
-            workerName = state.workerName.trim(),
-            onConfirm = onConfirmCreateNewWorker,
-            onDismiss = onConfirmNewWorkerDialogDismiss
-        )
+    // 焦点管理：
+    // - Create 模式首次打开 → 焦点在工资框
+    // - 登记成功后 → 焦点回到姓名框（方便连续登记下一个工人）
+    LaunchedEffect(state.lastSuccessMessage) {
+        if (state.lastSuccessMessage != null) {
+            // 登记成功，焦点回到姓名框
+            try {
+                kotlinx.coroutines.delay(50)
+                nameFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
     }
 
-    // 打开 BottomSheet 时把焦点放到工资框（仅 Create 模式；Edit 模式用户可能要先看名字）
-    if (state.mode == FormMode.Create) {
-        androidx.compose.runtime.LaunchedEffect(Unit) {
+    if (state.mode == FormMode.Create && state.lastSuccessMessage == null) {
+        LaunchedEffect(Unit) {
             try {
                 wageFocusRequester.requestFocus()
-            } catch (_: Exception) {
-                // focus requester 在 IME 未就绪时偶尔失败，忽略
-            }
+            } catch (_: Exception) {}
         }
     }
 }
 
 /**
- * 同名工人候选列表：让用户选"复用 / 新建"
+ * 同名工人对话框（M2.1 简化）
+ *
+ * 两个按钮：
+ * - "切换到该工人"：onUseExisting(workerId) → 用已存在 worker 登记
+ * - "改名新建"：onRenameAndCreate() → 关闭弹窗，用户继续改输入框
  */
 @Composable
 private fun DuplicateWorkerDialog(
     workerName: String,
     duplicates: List<Worker>,
-    onReuse: (String) -> Unit,
-    onCreateNew: () -> Unit,
+    onUseExisting: (String) -> Unit,
+    onRenameAndCreate: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.dialog_duplicate_title, workerName)) },
+        title = {
+            Text(
+                text = stringResource(R.string.dialog_duplicate_title, workerName),
+                fontSize = 22.sp
+            )
+        },
         text = {
             Column {
-                Text(stringResource(R.string.dialog_duplicate_message))
+                Text(
+                    text = stringResource(R.string.dialog_duplicate_message),
+                    fontSize = 18.sp
+                )
                 Spacer(modifier = Modifier.height(8.dp))
                 duplicates.forEach { worker ->
                     DuplicateCandidateRow(
                         worker = worker,
-                        onClick = { onReuse(worker.id) }
+                        onClick = { onUseExisting(worker.id) }
                     )
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onCreateNew) {
+            TextButton(onClick = onUseExisting.let { { it(duplicates.first().id) } }) {
                 Text(
-                    text = stringResource(R.string.action_create_new_worker),
-                    fontSize = 18.sp
+                    text = stringResource(R.string.action_use_existing),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onRenameAndCreate) {
                 Text(
-                    text = stringResource(R.string.action_cancel),
-                    fontSize = 18.sp
+                    text = stringResource(R.string.action_rename_and_create),
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.error
                 )
             }
         }
@@ -266,39 +304,3 @@ private fun DuplicateCandidateRow(
         )
     }
 }
-
-/**
- * 确认新建同名工人（防误重名）
- */
-@Composable
-private fun ConfirmNewWorkerDialog(
-    workerName: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.dialog_confirm_new_worker_title)) },
-        text = {
-            Text(stringResource(R.string.dialog_confirm_new_worker_message, workerName))
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(
-                    text = stringResource(R.string.action_confirm),
-                    fontSize = 18.sp
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(
-                    text = stringResource(R.string.action_cancel),
-                    fontSize = 18.sp
-                )
-            }
-        }
-    )
-}
-
-// 扩展函数：检测输入框失焦已用 onFocusChanged 直接实现，无需额外扩展
