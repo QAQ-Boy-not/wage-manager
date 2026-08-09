@@ -1,17 +1,15 @@
-// HomeScreen.kt - 首页 UI
+// HomeScreen.kt - 首页 UI（M2 完整版）
 //
 // 布局（自上而下）：
 //   1. 今日日期（大标题）
 //   2. 手动登记按钮（蓝色大按钮）
 //   3. 统计栏：合计 / 未付 / 已付
-//   4. 工资记录列表（LazyColumn）
-//   5. 空列表提示
-//   6. RegisterBottomSheet（按状态显示）
-//
-// 设计要点：
-// - 回调统一打包成 HomeScreenCallbacks（11 个回调太多，单个 data class 更清晰）
-// - 汇总数字调用 WageCalculator 已在 ViewModel 里算好，这里只读不重算
-// - 大字体、大按钮、高对比度（老年用户友好）
+//   4. 未付 / 已付 双标签
+//   5. 当前 tab 的工资记录列表（LazyColumn）
+//   6. 空列表提示
+//   7. RegisterBottomSheet（按状态显示）
+//   8. RecordActionMenuDialog（长按已付项弹）
+//   9. ConfirmActionDialog（标记 / 撤销 / 删除前确认）
 
 package com.example.wagemanager.ui.home
 
@@ -25,12 +23,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.wagemanager.R
@@ -48,11 +43,16 @@ import com.example.wagemanager.ui.components.BigButton
 import com.example.wagemanager.util.DateRules
 import com.example.wagemanager.util.MoneyUtils
 
-/**
- * HomeScreen 的所有回调（11 个，用 data class 打包避免参数列表过长）
- */
 data class HomeScreenCallbacks(
     val onManualRegisterClick: () -> Unit,
+    val onTabChange: (Boolean) -> Unit,
+    val onMarkPaidClick: (Long) -> Unit,
+    val onActionMenuShow: (Long) -> Unit,
+    val onActionSelected: (Long, ActionOption) -> Unit,
+    val onActionMenuDismiss: () -> Unit,
+    val onEditClick: (Long) -> Unit,
+    val onPendingConfirmAccept: () -> Unit,
+    val onPendingConfirmDismiss: () -> Unit,
     val onWorkerNameChange: (String) -> Unit,
     val onWorkerNameFocusLost: () -> Unit,
     val onWageInputChange: (String) -> Unit,
@@ -84,9 +84,9 @@ fun HomeScreen(
                 text = DateRules.formatChineseDate(state.workDate),
                 style = MaterialTheme.typography.headlineLarge,
                 modifier = Modifier.fillMaxWidth(),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ===== 手动登记按钮 =====
             BigButton(
@@ -94,7 +94,7 @@ fun HomeScreen(
                 backgroundColor = MaterialTheme.colorScheme.primary,
                 onClick = callbacks.onManualRegisterClick
             )
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ===== 统计栏 =====
             HomeStats(
@@ -103,12 +103,25 @@ fun HomeScreen(
                 paidCount = state.paidCount,
                 recordCount = state.recordCount
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            Divider()
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // ===== 工资记录列表 =====
-            if (state.records.isEmpty()) {
+            // ===== 双标签 =====
+            HomeTabs(
+                isPaidTab = state.isPaidTab,
+                unpaidCount = state.unpaidCount,
+                paidCount = state.paidCount,
+                onTabChange = callbacks.onTabChange
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ===== 当前 tab 的记录列表 =====
+            val visibleRecords = if (state.isPaidTab) {
+                state.records.filter { it.isPaid }
+            } else {
+                state.records.filter { !it.isPaid }
+            }
+
+            if (visibleRecords.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -116,9 +129,13 @@ fun HomeScreen(
                     contentAlignment = Alignment.TopCenter
                 ) {
                     Text(
-                        text = stringResource(R.string.empty_records_hint),
+                        text = stringResource(
+                            if (state.isPaidTab) R.string.empty_paid_hint
+                            else R.string.empty_unpaid_hint
+                        ),
                         fontSize = 20.sp,
-                        color = Color.Gray
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
                     )
                 }
             } else {
@@ -126,15 +143,20 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(state.records, key = { it.recordId }) { item ->
-                        WageListItem(item = item)
+                    items(visibleRecords, key = { it.recordId }) { item ->
+                        WageCard(
+                            item = item,
+                            onMarkPaidClick = { callbacks.onMarkPaidClick(item.recordId) },
+                            onEditClick = { callbacks.onEditClick(item.recordId) },
+                            onLongClick = { callbacks.onActionMenuShow(item.recordId) }
+                        )
                     }
                 }
             }
         }
     }
 
-    // ===== 登记 BottomSheet =====
+    // ===== 登记 / 编辑 BottomSheet =====
     RegisterBottomSheet(
         state = state.registerForm,
         onWorkerNameChange = callbacks.onWorkerNameChange,
@@ -147,6 +169,75 @@ fun HomeScreen(
         onConfirmCreateNewWorker = callbacks.onConfirmCreateNewWorker,
         onDuplicateDialogDismiss = callbacks.onDuplicateDialogDismiss,
         onConfirmNewWorkerDialogDismiss = callbacks.onConfirmNewWorkerDialogDismiss
+    )
+
+    // ===== 长按操作菜单 =====
+    val menuRecordId = state.actionMenuRecordId
+    if (menuRecordId != null) {
+        val menuItem = state.records.firstOrNull { it.recordId == menuRecordId }
+        if (menuItem != null) {
+            RecordActionMenuDialog(
+                recordId = menuRecordId,
+                workerName = menuItem.workerName,
+                onSelected = callbacks.onActionSelected,
+                onDismiss = callbacks.onActionMenuDismiss
+            )
+        }
+    }
+
+    // ===== 二次确认对话框 =====
+    val pending = state.pendingConfirmAction
+    if (pending != null) {
+        val (title, message, confirmLabel, destructive) = when (pending) {
+            is PendingConfirmAction.MarkPaid -> {
+                val name = state.records.firstOrNull { it.recordId == pending.recordId }?.workerName ?: ""
+                ConfirmDialogTexts(
+                    title = stringResource(R.string.dialog_mark_paid_title),
+                    message = stringResource(R.string.dialog_mark_paid_message, name, formatAmount(state, pending.recordId)),
+                    confirmLabel = stringResource(R.string.action_mark_paid),
+                    destructive = false
+                )
+            }
+            is PendingConfirmAction.RevokePayment -> {
+                val name = state.records.firstOrNull { it.recordId == pending.recordId }?.workerName ?: ""
+                ConfirmDialogTexts(
+                    title = stringResource(R.string.dialog_revoke_title),
+                    message = stringResource(R.string.dialog_revoke_message, name),
+                    confirmLabel = stringResource(R.string.action_revoke_payment),
+                    destructive = false
+                )
+            }
+            is PendingConfirmAction.DeleteRecord -> {
+                val name = state.records.firstOrNull { it.recordId == pending.recordId }?.workerName ?: ""
+                ConfirmDialogTexts(
+                    title = stringResource(R.string.dialog_delete_title),
+                    message = stringResource(R.string.dialog_delete_message, name, formatAmount(state, pending.recordId)),
+                    confirmLabel = stringResource(R.string.action_delete_record),
+                    destructive = true
+                )
+            }
+        }
+        ConfirmActionDialog(
+            title = title,
+            message = message,
+            confirmLabel = confirmLabel,
+            isDestructive = destructive,
+            onConfirm = callbacks.onPendingConfirmAccept,
+            onDismiss = callbacks.onPendingConfirmDismiss
+        )
+    }
+}
+
+private data class ConfirmDialogTexts(
+    val title: String,
+    val message: String,
+    val confirmLabel: String,
+    val destructive: Boolean
+)
+
+private fun formatAmount(state: HomeUiState, recordId: Long): String {
+    return MoneyUtils.formatCent(
+        state.records.firstOrNull { it.recordId == recordId }?.wageCent ?: 0L
     )
 }
 
@@ -199,41 +290,5 @@ private fun HomeStats(
             fontSize = 16.sp,
             color = Color.Gray
         )
-    }
-}
-
-/**
- * 工资记录列表项（M1 不做点击交互，仅展示）
- */
-@Composable
-private fun WageListItem(item: HomeWageItem) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = colorResource(R.color.wage_card_background)
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "👤 ${item.workerName}",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.width(180.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "${MoneyUtils.formatCent(item.wageCent)} 元",
-                fontSize = 22.sp,
-                color = colorResource(
-                    if (item.isPaid) R.color.wage_paid_green else R.color.wage_unpaid_red
-                ),
-                fontWeight = FontWeight.Bold
-            )
-        }
     }
 }

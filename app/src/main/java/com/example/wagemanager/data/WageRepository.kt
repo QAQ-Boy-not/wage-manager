@@ -113,4 +113,89 @@ class WageRepository(
             )
         }
     }
+
+    /**
+     * 标记已付。
+     *
+     * @return true 表示成功（记录存在且原状态是未付）；false 表示记录不存在或已是已付
+     */
+    suspend fun markPaid(recordId: Long): Boolean {
+        val paidTime = LocalDateTime.now(clock).withNano(0)
+        val rows = wageRecordDao.markPaid(recordId, paidTime)
+        return rows > 0
+    }
+
+    /**
+     * 撤销付款（已付 → 未付，paid_time 置空）。
+     *
+     * @return true 表示成功（记录存在且原状态是已付）；false 表示记录不存在或已是未付
+     */
+    suspend fun revokePayment(recordId: Long): Boolean {
+        val rows = wageRecordDao.revokePayment(recordId)
+        return rows > 0
+    }
+
+    /**
+     * 编辑未付记录的姓名和工资。
+     * 业务规则：已付款记录不可改，仅可"撤销付款"。
+     *
+     * 命名复用：传 name 让调用方可以同名复用 / 新建同名工人，逻辑跟 registerManualWage 一致。
+     *
+     * @return true 表示成功（记录存在且原状态是未付）
+     */
+    suspend fun updateWage(
+        recordId: Long,
+        name: String,
+        wageCent: Long,
+        workerChoice: ManualWorkerChoice
+    ): Boolean {
+        val normalizedName = name.trim()
+        require(normalizedName.isNotEmpty()) { "工人姓名不能为空" }
+        require(wageCent > 0) { "工资金额必须 > 0" }
+
+        return database.withTransaction {
+            // 1. 决定 Worker：复用 or 新建
+            val worker = when (workerChoice) {
+                ManualWorkerChoice.CreateNew -> {
+                    val existing = wageRecordDao.findById(recordId)
+                    val workDate = existing?.record?.workDate ?: LocalDate.now(clock)
+                    val newWorker = Worker(
+                        id = ManualWorkerId.create(),
+                        name = normalizedName,
+                        qrRaw = null,
+                        qrcodePath = null,
+                        isManual = true,
+                        firstWorkDate = workDate
+                    )
+                    workerDao.insert(newWorker)
+                    newWorker
+                }
+                is ManualWorkerChoice.Reuse -> {
+                    workerDao.findById(workerChoice.workerId)
+                        ?: error("复用的工人不存在：${workerChoice.workerId}")
+                }
+            }
+
+            // 2. 改工资记录（DAO 的 WHERE 含 is_paid=0 保护，已付记录改不动）
+            val rows = wageRecordDao.updateWage(recordId, worker.id, wageCent)
+            rows > 0
+        }
+    }
+
+    /**
+     * 删除单条工资记录。删除不级联删工人（V1.1 强制）。
+     *
+     * @return true 表示成功
+     */
+    suspend fun deleteRecord(recordId: Long): Boolean {
+        val rows = wageRecordDao.deleteById(recordId)
+        return rows > 0
+    }
+
+    /**
+     * 按 id 查单条记录（编辑模式预填用）。
+     */
+    suspend fun findRecordById(recordId: Long): WageRecordWithWorker? {
+        return wageRecordDao.findById(recordId)
+    }
 }

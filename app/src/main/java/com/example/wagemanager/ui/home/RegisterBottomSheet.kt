@@ -73,8 +73,12 @@ fun RegisterBottomSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
+            // 标题：根据模式切换
             Text(
-                text = stringResource(R.string.register_title),
+                text = stringResource(
+                    if (state.mode == FormMode.Edit) R.string.edit_title
+                    else R.string.register_title
+                ),
                 style = MaterialTheme.typography.headlineMedium
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -132,9 +136,12 @@ fun RegisterBottomSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 登记 / 取消
+            // 登记 / 保存
             BigButton(
-                text = stringResource(R.string.action_confirm_register),
+                text = stringResource(
+                    if (state.mode == FormMode.Edit) R.string.action_save_edit
+                    else R.string.action_confirm_register
+                ),
                 backgroundColor = MaterialTheme.colorScheme.primary,
                 enabled = !state.isSaving,
                 onClick = {
@@ -177,12 +184,14 @@ fun RegisterBottomSheet(
         )
     }
 
-    // 打开 BottomSheet 时把焦点放到工资框
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        try {
-            wageFocusRequester.requestFocus()
-        } catch (_: Exception) {
-            // focus requester 在 IME 未就绪时偶尔失败，忽略
+    // 打开 BottomSheet 时把焦点放到工资框（仅 Create 模式；Edit 模式用户可能要先看名字）
+    if (state.mode == FormMode.Create) {
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            try {
+                wageFocusRequester.requestFocus()
+            } catch (_: Exception) {
+                // focus requester 在 IME 未就绪时偶尔失败，忽略
+            }
         }
     }
 }
