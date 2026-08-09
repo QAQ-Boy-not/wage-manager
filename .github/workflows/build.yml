@@ -83,25 +83,16 @@ jobs:
           # 保留 30 天（之后自动删除）
           retention-days: 30
 
-      # ===== 步骤 8：上传 Room Schema =====
-      # Room 会生成 schema/1.json，记录当前数据库结构
-      # 第一次跑会把 schema 1 生成出来，开发者下载后提交到仓库
-      # 后续跑用来验证 schema 是否被意外修改
-      - name: 📤 上传 Room Schema 产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: room-schema
-          path: app/schemas
-          if-no-files-found: error
-          retention-days: 30
+      # 注：Room Schema（app/schemas/*.json）会自动生成在仓库里（exportSchema = true）
+      # 但当前阶段没做 Migration 测试，CI 不上传 schema 产物
+      # 等到要做 MigrationTestHelper 时再加回
 
-      # ===== 步骤 9：构建结果摘要 =====
+      # ===== 步骤 8：构建结果摘要 =====
       - name: 📋 打印构建结果
         if: success()
         run: |
           echo "================================="
           echo "🎉 构建成功！"
-          echo "📦 产物 1：app-debug（APK）"
-          echo "� 产物 2：room-schema（数据库 Schema）"
+          echo "📦 产物：app-debug（APK）"
           echo "📥 在 Actions 页面下载 Artifacts"
           echo "================================="
