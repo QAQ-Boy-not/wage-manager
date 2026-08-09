@@ -290,16 +290,9 @@ fun BatchAddBillSheet(
                         currentForm = form,
                         onStateChange = { form = it },
                         onSuccess = { count ->
-                            // 清空表单准备下一批（保留日期 + 工区）
-                            form = BatchFormState(
-                                worksiteId = form.worksiteId,
-                                worksiteName = form.worksiteName,
-                                successMessage = "✅ 已批量添加 $count 笔账单"
-                            )
-                            scope.launch {
-                                kotlinx.coroutines.delay(2_000)
-                                form = form.copy(successMessage = null)
-                            }
+                            // Bug 8 修复：批量成功直接关闭 BottomSheet
+                            // （不再连续添加，避免误操作）
+                            onDismiss()
                         }
                     )
                 }

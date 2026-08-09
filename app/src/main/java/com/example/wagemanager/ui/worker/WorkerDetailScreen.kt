@@ -233,30 +233,21 @@ fun WorkerDetailScreen(
         }
     }
 
-    // ===== 添加 / 编辑账单 BottomSheet（Bug 4 修复）=====
+    // ===== 添加 / 编辑账单 BottomSheet（Bug 9 修复：详情页用单笔，不是批量）=====
     if (state.control.isRegisterSheetVisible) {
         val editingBill = state.control.editingBillId?.let { id ->
             state.findBillById(id)
         }
-        if (editingBill != null) {
-            // 编辑模式：单笔编辑（不预选）
-            RegisterBillSheet(
-                repository = repository,
-                initialName = state.workerName.takeIf { it.isNotEmpty() },
-                editingBill = editingBill,
-                editingBillId = state.control.editingBillId,
-                onDismiss = viewModel::onAddBillDismiss
-            )
-        } else {
-            // 新增模式：批量添加（Bug 4：预选当前工人）
-            BatchAddBillSheet(
-                repository = repository,
-                workDate = state.control.editingBillId?.let { java.time.LocalDate.now() }
-                    ?: java.time.LocalDate.now(),
-                preselectedWorkerIds = setOf(workerId),
-                onDismiss = viewModel::onAddBillDismiss
-            )
-        }
+        // Bug 9：详情页 + 走单笔添加（不是批量，因为上下文是当前工人）
+        // 编辑模式：editingBill 非空
+        // 新增模式：editingBill 为空，预填当前工人名
+        RegisterBillSheet(
+            repository = repository,
+            initialName = state.workerName.takeIf { it.isNotEmpty() },
+            editingBill = editingBill,
+            editingBillId = state.control.editingBillId,
+            onDismiss = viewModel::onAddBillDismiss
+        )
     }
 
     // ===== 操作菜单（长按账单） =====

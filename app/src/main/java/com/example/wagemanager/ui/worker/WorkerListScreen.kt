@@ -295,8 +295,9 @@ private fun WorkerGroupCard(
     val count = if (isPaidTab) group.paidCount else group.unpaidCount
     val amountColor = if (isPaidTab) R.color.wage_paid_green else R.color.wage_unpaid_red
 
-    // Bug 1 修复：闭包陷阱防护
+    // Bug 1 修复：闭包陷阱防护（rememberUpdatedState 让回调永远指向最新值）
     val currentOnClick by rememberUpdatedState { onWorkerClick(group.workerId) }
+    val currentOnMenuClick by rememberUpdatedState { onMenuClick() }
 
     Card(
         modifier = Modifier
@@ -331,7 +332,7 @@ private fun WorkerGroupCard(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .clickable(onClick = onMenuClick),
+                        .clickable(onClick = currentOnMenuClick),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
