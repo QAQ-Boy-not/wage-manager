@@ -65,6 +65,10 @@ class WageRepository(
     fun observeWorkerDetail(workerId: String): Flow<List<WageRecordWithWorker>> =
         wageRecordDao.observeByWorkerId(workerId)
 
+    /** 观察某日所有账单（首页按工人聚合用，V1.3 新增） */
+    fun observeBillsByWorkDate(workDate: LocalDate): Flow<List<WageRecordWithWorker>> =
+        wageRecordDao.observeByWorkDate(workDate)
+
     /** 按 id 查工人 */
     suspend fun findWorkerById(workerId: String): Worker? =
         workerDao.findById(workerId)
