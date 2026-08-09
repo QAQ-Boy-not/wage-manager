@@ -48,16 +48,14 @@ jobs:
       # ===== 步骤 4：测试纯 Java 业务规则 =====
       # 在 Android 编译前先用 javac 验证 util/*.java 的业务逻辑
       # 这步不需要 Android SDK，能快速反馈业务规则的回归
+      # 用通配符匹配 util/*.java 避免每次加新类都要改 CI
       - name: 🧪 测试纯 Java 业务规则
         run: |
           OUT="$RUNNER_TEMP/wage-javac-test"
           mkdir -p "$OUT"
           javac -encoding UTF-8 -d "$OUT" \
-            app/src/main/java/com/example/wagemanager/util/MoneyUtils.java \
-            app/src/main/java/com/example/wagemanager/util/WageCalculator.java \
-            app/src/main/java/com/example/wagemanager/util/DateRules.java \
-            app/src/main/java/com/example/wagemanager/util/ManualWorkerId.java \
-            app/src/testJavac/java/com/example/wagemanager/util/WageBusinessRulesJavacTest.java
+            $(find app/src/main/java/com/example/wagemanager/util -name '*.java') \
+            $(find app/src/testJavac -name '*.java')
           java -cp "$OUT" com.example.wagemanager.util.WageBusinessRulesJavacTest
 
       # ===== 步骤 5：接受 Android SDK 许可 =====
