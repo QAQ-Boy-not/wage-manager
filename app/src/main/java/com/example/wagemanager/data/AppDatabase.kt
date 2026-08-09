@@ -1,11 +1,15 @@
-// AppDatabase.kt - Room 数据库主类
+// AppDatabase.kt - Room 数据库主类（V1.3 schema version = 2）
+//
+// V1.3 变更（相对 V1.2 schema 1）：
+// - entities 加 [Worker::class, WageRecord::class, Worksite::class]
+// - version 1 → 2
+// - Migration 1→2：CREATE TABLE worksites + ALTER TABLE wage_records ADD COLUMN worksite_id / notes
 //
 // 设计要点：
-// 1. 单例 + Application lazy 持有（避免 Activity 之间重复创建）
+// 1. 单例 + Application lazy 持有
 // 2. 触发器在 onCreate 里 execSQL 注册：兜底校验 wage_cent > 0 和 work_date ≤ 今天
-//    防止后续代码绕过 Repository 直接写库时插入非法数据
-// 3. 不用 fallbackToDestructiveMigration()：宁可崩也不静默清数据
-// 4. exportSchema = true：CI 跑完下载 schema 1.json 入库，便于后续迁移参考
+// 3. 不用 fallbackToDestructiveMigration()
+// 4. exportSchema = true：CI 跑完下载 schema 1.json / 2.json 入库
 
 package com.example.wagemanager.data
 
@@ -14,24 +18,24 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
         Worker::class,
-        WageRecord::class
+        WageRecord::class,
+        Worksite::class   // V1.3 新增
     ],
-    version = 1,
+    version = 2,            // V1.2 是 1，V1.3 升到 2
     exportSchema = true
 )
 @TypeConverters(DateTimeConverters::class)
 abstract class AppDatabase : RoomDatabase() {
 
-    // AppDatabase 是 public（被 Application / Repository 持有）
-    // Dao 自身和 dao() 方法仍是 internal（同 module 内 Repository 才能调）
-    // 这样既能让外部类型正常传递，又隐藏 Dao 实现细节
-    internal abstract fun workerDao(): WorkerDao
-    internal abstract fun wageRecordDao(): WageRecordDao
+    abstract fun workerDao(): WorkerDao
+    abstract fun wageRecordDao(): WageRecordDao
+    abstract fun worksiteDao(): WorksiteDao   // V1.3 新增
 
     companion object {
         private const val DB_NAME = "wage_manager.db"
@@ -52,20 +56,72 @@ abstract class AppDatabase : RoomDatabase() {
                 DB_NAME
             )
                 .addCallback(ConstraintCallback)
+                .addMigrations(MIGRATION_1_2)
                 .build()
         }
 
         /**
+         * Schema 迁移 1 → 2（V1.3）
+         *
+         * 步骤：
+         * 1. 新增 worksites 表
+         * 2. wage_records 加 worksite_id 列（可空）
+         * 3. wage_records 加 notes 列（可空）
+         *
+         * 现有数据完全保留（ALTER TABLE ... ADD COLUMN 不破坏数据）。
+         */
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // 1. 新增 worksites 表
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS worksites (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        address TEXT NOT NULL,
+                        created_at TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_worksites_name ON worksites(name)"
+                )
+
+                // 2. wage_records 加 worksite_id 列（可空）
+                database.execSQL(
+                    "ALTER TABLE wage_records ADD COLUMN worksite_id TEXT"
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_wage_records_worksite_id ON wage_records(worksite_id)"
+                )
+
+                // 3. wage_records 加 notes 列（可空）
+                database.execSQL(
+                    "ALTER TABLE wage_records ADD COLUMN notes TEXT"
+                )
+            }
+        }
+
+        /**
          * 数据库级兜底校验：防止任何代码绕过 Repository 直接写库时插入非法数据。
-         * Repository 仍然要先校验以便 UI 拿到可理解的错误，而不是 SQLite 异常。
          */
         private val ConstraintCallback = object : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
-                // INSERT 触发器：拒绝 wage_cent <= 0 或未来日期
+                installTriggers(db)
+            }
+
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                super.onOpen(db)
+                // 兼容老版本（schema 1）升级到 schema 2 后首次打开，
+                // 也需要确保触发器存在（防御性）。
+                installTriggers(db)
+            }
+
+            private fun installTriggers(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
-                    CREATE TRIGGER wage_records_validate_insert
+                    CREATE TRIGGER IF NOT EXISTS wage_records_validate_insert
                     BEFORE INSERT ON wage_records
                     FOR EACH ROW
                     WHEN NEW.wage_cent <= 0
@@ -75,10 +131,9 @@ abstract class AppDatabase : RoomDatabase() {
                     END
                     """.trimIndent()
                 )
-                // UPDATE 触发器：同上
                 db.execSQL(
                     """
-                    CREATE TRIGGER wage_records_validate_update
+                    CREATE TRIGGER IF NOT EXISTS wage_records_validate_update
                     BEFORE UPDATE ON wage_records
                     FOR EACH ROW
                     WHEN NEW.wage_cent <= 0
