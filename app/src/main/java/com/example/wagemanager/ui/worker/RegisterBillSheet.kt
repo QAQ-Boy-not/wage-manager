@@ -324,7 +324,8 @@ fun RegisterBillSheet(
 
     // 焦点管理
     LaunchedEffect(form.successMessage) {
-        if (form.successMessage != null && form.successMessage.startsWith("✅")) {
+        val msg = form.successMessage
+        if (msg != null && msg.startsWith("✅")) {
             // 成功 → 焦点回到姓名框
             try {
                 delay(50)
