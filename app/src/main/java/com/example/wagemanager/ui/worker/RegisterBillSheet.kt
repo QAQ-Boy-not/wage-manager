@@ -80,6 +80,9 @@ private data class BillFormState(
 @Composable
 fun RegisterBillSheet(
     repository: WageRepository,
+    initialName: String? = null,
+    editingBill: BillItem? = null,
+    @Suppress("UNUSED_PARAMETER") editingBillId: Long? = null,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -88,9 +91,28 @@ fun RegisterBillSheet(
     val wageFocusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
 
-    var form by remember { mutableStateOf(BillFormState()) }
+    val isEditMode = editingBill != null
 
-    // 提交逻辑：调 repository.registerBill
+    // 初始金额格式（cents → "280.50"）
+    val initialWageInput = editingBill?.let {
+        val yuan = it.wageCent.toDouble() / 100.0
+        if (yuan == yuan.toLong().toDouble()) yuan.toLong().toString()
+        else "%.2f".format(yuan)
+    } ?: ""
+
+    var form by remember {
+        mutableStateOf(
+            BillFormState(
+                workDate = editingBill?.workDate ?: LocalDate.now(),
+                nameInput = editingBill?.let { initialName.orEmpty() } ?: initialName.orEmpty(),
+                wageInput = initialWageInput,
+                // 如果传了 initialName，自动跳过同名查重（detail 页加账单场景）
+                selectedExistingWorkerId = if (initialName != null) "" else null
+            )
+        )
+    }
+
+    // 提交逻辑：根据 isEditMode 决定 registerBill 或 updateWage
     fun submit() {
         val name = form.nameInput.trim()
         if (name.isEmpty()) {
@@ -103,7 +125,7 @@ fun RegisterBillSheet(
             return
         }
         // 同名但用户还没决定
-        if (form.duplicateWorkers.isNotEmpty() && form.selectedExistingWorkerId == null) {
+        if (!isEditMode && form.duplicateWorkers.isNotEmpty() && form.selectedExistingWorkerId == null) {
             form = form.copy(isDuplicateDialogVisible = true)
             return
         }
@@ -111,27 +133,43 @@ fun RegisterBillSheet(
         form = form.copy(isSaving = true)
         scope.launch {
             try {
-                repository.registerBill(
-                    name = name,
-                    wageCent = parse.wageCent,
-                    workDate = form.workDate,
-                    existingWorkerId = form.selectedExistingWorkerId
-                )
-                val msg = "✅ 已添加：$name ${MoneyUtils.formatCent(parse.wageCent)}元"
-                // 清空表单（保留日期）准备下一笔
-                form = BillFormState(
-                    workDate = form.workDate,
-                    successMessage = msg
-                )
-                // 2 秒后清空反馈
-                scope.launch {
-                    delay(2_000)
-                    form = form.copy(successMessage = null)
+                if (isEditMode && editingBill != null) {
+                    // 编辑模式：调 updateWage
+                    repository.updateWage(
+                        recordId = editingBill.recordId,
+                        name = name,
+                        wageCent = parse.wageCent,
+                        existingWorkerId = form.selectedExistingWorkerId.takeIf { it.isNotEmpty() }
+                    )
+                    val msg = "✅ 已修改：$name ${MoneyUtils.formatCent(parse.wageCent)}元"
+                    form = BillFormState(successMessage = msg)
+                    scope.launch {
+                        delay(2_000)
+                        form = form.copy(successMessage = null)
+                    }
+                } else {
+                    // 新建模式：调 registerBill
+                    repository.registerBill(
+                        name = name,
+                        wageCent = parse.wageCent,
+                        workDate = form.workDate,
+                        existingWorkerId = form.selectedExistingWorkerId.takeIf { it.isNotEmpty() }
+                    )
+                    val msg = "✅ 已添加：$name ${MoneyUtils.formatCent(parse.wageCent)}元"
+                    form = BillFormState(
+                        workDate = form.workDate,
+                        successMessage = msg
+                    )
+                    scope.launch {
+                        delay(2_000)
+                        form = form.copy(successMessage = null)
+                    }
                 }
             } catch (e: Exception) {
+                val op = if (isEditMode) "修改" else "添加"
                 form = form.copy(
                     isSaving = false,
-                    successMessage = "❌ 添加失败：${e.message ?: "未知错误"}"
+                    successMessage = "❌ ${op}失败：${e.message ?: "未知错误"}"
                 )
                 scope.launch {
                     delay(2_000)
@@ -152,7 +190,10 @@ fun RegisterBillSheet(
         ) {
             // 标题
             Text(
-                text = stringResource(R.string.bill_register_title),
+                text = stringResource(
+                    if (isEditMode) R.string.bill_edit_title
+                    else R.string.bill_register_title
+                ),
                 style = MaterialTheme.typography.headlineMedium
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -277,9 +318,12 @@ fun RegisterBillSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 添加 / 取消
+            // 添加 / 保存 / 取消
             BigButton(
-                text = stringResource(R.string.bill_action_add),
+                text = stringResource(
+                    if (isEditMode) R.string.bill_action_save
+                    else R.string.bill_action_add
+                ),
                 backgroundColor = MaterialTheme.colorScheme.primary,
                 enabled = !form.isSaving,
                 onClick = {

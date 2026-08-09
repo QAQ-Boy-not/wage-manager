@@ -159,6 +159,7 @@ fun WorkerListScreen(
     if (state.isRegisterSheetVisible) {
         RegisterBillSheet(
             repository = repository,
+            initialName = null,
             onDismiss = viewModel::onAddBillDismiss
         )
     }

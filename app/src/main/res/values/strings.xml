@@ -23,10 +23,28 @@
 
     <!-- 添加账单 -->
     <string name="bill_register_title">添加账单</string>
+    <string name="bill_edit_title">编辑账单</string>
     <string name="bill_field_work_date">出工日期：%1$s</string>
     <string name="bill_field_worker_name">工人姓名</string>
     <string name="bill_field_wage">工资金额（元）</string>
     <string name="bill_action_add">✅ 添加</string>
+    <string name="bill_action_save">✅ 保存</string>
+
+    <!-- 账单操作（M1.1 状态流转） -->
+    <string name="action_mark_paid">✅ 标记已付</string>
+    <string name="action_revoke_payment">↩️ 撤销付款</string>
+    <string name="action_delete_record">🗑️ 删除记录</string>
+    <string name="action_edit_bill">✏️ 编辑账单</string>
+
+    <!-- 操作菜单 / 二次确认对话框 -->
+    <string name="dialog_action_menu_title">「%1$s」的操作</string>
+    <string name="dialog_action_menu_message">请选择要执行的操作</string>
+    <string name="dialog_mark_paid_title">确认标记已付？</string>
+    <string name="dialog_mark_paid_message">「%1$s」%2$s 元，确认标记为已付吗？</string>
+    <string name="dialog_revoke_title">确认撤销付款？</string>
+    <string name="dialog_revoke_message">「%1$s」已标记为已付，撤销后将变回未付状态</string>
+    <string name="dialog_delete_title">确认删除？</string>
+    <string name="dialog_delete_message">「%1$s」%2$s 元，确认删除这条记录吗？删除后无法恢复</string>
 
     <!-- 通用 -->
     <string name="action_cancel">取消</string>
