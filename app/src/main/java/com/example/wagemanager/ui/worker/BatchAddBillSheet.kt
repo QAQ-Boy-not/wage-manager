@@ -102,7 +102,7 @@ fun BatchAddBillSheet(
         )
     }
     var allWorkers by remember { mutableStateOf<List<WorkerPickItem>>(emptyList()) }
-    var worksites by remember { mutableStateOf<List<Worksite>>(emptyList())
+    var worksites by remember { mutableStateOf<List<Worksite>>(emptyList()) }
 
     // 加载所有工人 + 工区
     LaunchedEffect(Unit) {
