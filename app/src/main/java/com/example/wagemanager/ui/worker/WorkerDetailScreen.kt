@@ -58,6 +58,7 @@ import com.example.wagemanager.data.WageRepository
 import com.example.wagemanager.util.DateRules
 import com.example.wagemanager.util.MoneyUtils
 import com.example.wagemanager.util.PaymentRules
+import com.example.wagemanager.ui.components.DatePickerSheet
 import java.time.LocalDate
 
 @Composable
@@ -72,6 +73,7 @@ fun WorkerDetailScreen(
     )
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var showDatePicker by remember { mutableStateOf(false) }
 
     // 一次性事件：操作失败 Toast
     LaunchedEffect(workerId) {
@@ -93,6 +95,13 @@ fun WorkerDetailScreen(
                 DetailTopBar(
                     workerName = state.workerName,
                     onBack = onBack
+                )
+                // M3：日期选择器
+                DateRowSelector(
+                    date = state.selectedDate,
+                    onPrevClick = { viewModel.onDateChange(state.selectedDate.minusDays(1)) },
+                    onNextClick = { viewModel.onDateChange(state.selectedDate.plusDays(1)) },
+                    onDateClick = { showDatePicker = true }
                 )
 
                 if (state.isWorkerNotFound) {
@@ -228,6 +237,18 @@ fun WorkerDetailScreen(
             editingBill = editingBill,
             editingBillId = state.control.editingBillId,
             onDismiss = viewModel::onAddBillDismiss
+        )
+    }
+
+    // ===== M3：日期选择器 =====
+    if (showDatePicker) {
+        DatePickerSheet(
+            initialDate = state.selectedDate,
+            onConfirm = { newDate ->
+                viewModel.onDateChange(newDate)
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false }
         )
     }
 
@@ -720,3 +741,50 @@ private data class ConfirmDialogTexts(
     val confirmLabel: String,
     val destructive: Boolean
 )
+
+/**
+ * M3：日期行选择器（← 当前 →）
+ */
+@Composable
+private fun DateRowSelector(
+    date: LocalDate,
+    onPrevClick: () -> Unit,
+    onNextClick: () -> Unit,
+    onDateClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = colorResource(R.color.wage_card_background),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TextButton(onClick = onPrevClick) {
+            Text(
+                text = "←",
+                fontSize = 24.sp,
+                color = colorResource(R.color.wage_action_blue)
+            )
+        }
+        Text(
+            text = DateRules.formatChineseDate(date) + "  📅",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = colorResource(R.color.wage_text_primary),
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onDateClick),
+            textAlign = TextAlign.Center
+        )
+        TextButton(onClick = onNextClick) {
+            Text(
+                text = "→",
+                fontSize = 24.sp,
+                color = colorResource(R.color.wage_action_blue)
+            )
+        }
+    }
+}

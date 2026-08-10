@@ -62,6 +62,7 @@ import com.example.wagemanager.data.WageRepository
 import com.example.wagemanager.util.DateRules
 import com.example.wagemanager.util.MoneyUtils
 import com.example.wagemanager.util.PaymentRules
+import com.example.wagemanager.ui.components.DatePickerSheet
 import com.example.wagemanager.data.Worksite
 import com.example.wagemanager.data.Worker
 
@@ -76,6 +77,7 @@ fun WorkerListScreen(
     )
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var longPressGroup by remember { mutableStateOf<WorkerGroup?>(null) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.onScreenResume()
@@ -91,7 +93,7 @@ fun WorkerListScreen(
                     .fillMaxSize()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                // ===== 顶部：页面名 "工人列表" + 日期 + 管理按钮 =====
+                // ===== 顶部：页面名 "工人列表" + 日期选择器 + 管理按钮 =====
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -103,11 +105,6 @@ fun WorkerListScreen(
                         color = colorResource(R.color.wage_text_primary)
                     )
                     Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = DateRules.formatChineseDate(state.workDate),
-                        fontSize = 14.sp,
-                        color = Color.Gray
-                    )
                     TextButton(onClick = onManageClick) {
                         Text(
                             text = "⚙️ 管理",
@@ -116,6 +113,13 @@ fun WorkerListScreen(
                         )
                     }
                 }
+                // M3：日期选择器（← 当前 →）
+                DateRowSelector(
+                    date = state.workDate,
+                    onPrevClick = { viewModel.onDateChange(state.workDate.minusDays(1)) },
+                    onNextClick = { viewModel.onDateChange(state.workDate.plusDays(1)) },
+                    onDateClick = { showDatePicker = true }
+                )
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // ===== 汇总（分行显示未付/已付） =====
@@ -214,6 +218,18 @@ fun WorkerListScreen(
             repository = repository,
             workDate = state.workDate,
             onDismiss = viewModel::onAddBillDismiss
+        )
+    }
+
+    // ===== M3：日期选择器（点击顶部日期弹出）=====
+    if (showDatePicker) {
+        DatePickerSheet(
+            initialDate = state.workDate,
+            onConfirm = { newDate ->
+                viewModel.onDateChange(newDate)
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false }
         )
     }
 
@@ -490,5 +506,55 @@ private fun TabButton(
             fontWeight = FontWeight.Bold,
             color = textColor
         )
+    }
+}
+
+/**
+ * M3：日期行选择器（← 当前日期 →）
+ * - ← 按钮：日期 - 1
+ * - 当前日期：点击弹 DatePickerSheet
+ * - → 按钮：日期 + 1
+ */
+@Composable
+private fun DateRowSelector(
+    date: LocalDate,
+    onPrevClick: () -> Unit,
+    onNextClick: () -> Unit,
+    onDateClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = colorResource(R.color.wage_card_background),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TextButton(onClick = onPrevClick) {
+            Text(
+                text = "←",
+                fontSize = 24.sp,
+                color = colorResource(R.color.wage_action_blue)
+            )
+        }
+        Text(
+            text = DateRules.formatChineseDate(date) + "  📅",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = colorResource(R.color.wage_text_primary),
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onDateClick),
+            textAlign = TextAlign.Center
+        )
+        TextButton(onClick = onNextClick) {
+            Text(
+                text = "→",
+                fontSize = 24.sp,
+                color = colorResource(R.color.wage_action_blue)
+            )
+        }
     }
 }

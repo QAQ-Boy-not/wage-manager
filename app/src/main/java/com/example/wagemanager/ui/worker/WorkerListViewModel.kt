@@ -140,6 +140,12 @@ class WorkerListViewModel(
         }
     }
 
+    // ===== M3：日期维度 =====
+
+    fun onDateChange(date: LocalDate) {
+        _workDate.value = date
+    }
+
     fun onTabChange(toPaidTab: Boolean) {
         _isPaidTab.value = toPaidTab
     }

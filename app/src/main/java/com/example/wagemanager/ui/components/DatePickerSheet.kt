@@ -1,0 +1,192 @@
+// DatePickerSheet.kt - 通用日期选择器（V1.3 M3 新增）
+//
+// 用途：在 WorkerList / WorkerDetail / AddBillSheet / BatchAddBillSheet 顶部使用
+// 用户点击当前日期 → 弹这个 BottomSheet → 选日期 → 回调
+//
+// 设计要点：
+// - ModalBottomSheet（含 Material DatePicker 日历）
+// - 顶部：当前选中日期大字 + 快捷按钮（今天 / 昨天 / 前天）
+// - 中部：DatePicker（material3 自带日历）
+// - 底部：[✅ 选这个日期] [取消]
+
+package com.example.wagemanager.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.wagemanager.R
+import com.example.wagemanager.util.DateRules
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+
+/**
+ * 通用日期选择 BottomSheet（M3 新增）
+ *
+ * @param initialDate 初始显示的日期
+ * @param onConfirm 用户选完日期点确认（返回选中的日期）
+ * @param onDismiss 关闭选择器
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DatePickerSheet(
+    initialDate: LocalDate,
+    onConfirm: (LocalDate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // 内部维护一个"临时选中"的日期（用户点 ✅ 才提交，否则不修改）
+    var tempDate by remember { mutableStateOf(initialDate) }
+
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = tempDate.atStartOfDay(ZoneId.systemDefault())
+            .toInstant().toEpochMilli()
+    )
+
+    // 同步 DatePicker 选择到 tempDate
+    val selectedMillis = datePickerState.selectedDateMillis
+    if (selectedMillis != null) {
+        val newDate = Instant.ofEpochMilli(selectedMillis)
+            .atZone(ZoneId.systemDefault()).toLocalDate()
+        if (newDate != tempDate) {
+            tempDate = newDate
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            // 标题
+            Text(
+                text = stringResource(R.string.date_picker_title),
+                style = MaterialTheme.typography.headlineMedium
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 当前选中日期（大字）
+            Text(
+                text = DateRules.formatChineseDate(tempDate),
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = colorResource(R.color.wage_text_primary)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 快捷按钮（今天 / 昨天 / 前天）
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                QuickDateButton(
+                    label = stringResource(R.string.date_picker_today),
+                    onClick = { tempDate = LocalDate.now() },
+                    modifier = Modifier.weight(1f)
+                )
+                QuickDateButton(
+                    label = stringResource(R.string.date_picker_yesterday),
+                    onClick = { tempDate = LocalDate.now().minusDays(1) },
+                    modifier = Modifier.weight(1f)
+                )
+                QuickDateButton(
+                    label = stringResource(R.string.date_picker_day_before),
+                    onClick = { tempDate = LocalDate.now().minusDays(2) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // DatePicker 日历
+            DatePicker(
+                state = datePickerState,
+                showModeToggle = false  // 不显示日历/输入切换按钮
+            )
+
+            // 操作按钮
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.action_cancel), fontSize = 18.sp)
+                }
+                Spacer(modifier = Modifier.padding(horizontal = 4.dp))
+                TextButton(onClick = { onConfirm(tempDate) }) {
+                    Text(
+                        stringResource(R.string.date_picker_confirm),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colorResource(R.color.wage_action_blue)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun QuickDateButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .height(40.dp)
+            .background(
+                color = colorResource(R.color.wage_card_background),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(horizontal = 4.dp)
+            .clickableSafe(onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = colorResource(R.color.wage_action_blue)
+        )
+    }
+}
+
+// 安全的 clickable（避免在某些场景下出错）
+@Composable
+private fun Modifier.clickableSafe(onClick: () -> Unit): Modifier =
+    this.then(androidx.compose.foundation.clickable(onClick = onClick))
