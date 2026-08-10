@@ -50,6 +50,8 @@ import com.example.wagemanager.data.WageRepository
 import com.example.wagemanager.data.Worksite
 import com.example.wagemanager.ui.components.BigButton
 import com.example.wagemanager.util.MoneyUtils
+import com.example.wagemanager.util.DateRules
+import com.example.wagemanager.ui.components.DatePickerSheet
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -228,9 +230,10 @@ fun RegisterBillSheet(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // 日期（只读，M4 加日期选择器）
+            // M3：日期（点击弹 DatePickerSheet）
+            var showDatePicker by remember { mutableStateOf(false) }
             Text(
-                text = stringResource(R.string.bill_field_work_date, form.workDate.toString()),
+                text = stringResource(R.string.bill_field_work_date, DateRules.formatChineseDate(form.workDate)),
                 fontSize = 14.sp,
                 color = colorResource(R.color.wage_text_primary),
                 modifier = Modifier
@@ -239,6 +242,7 @@ fun RegisterBillSheet(
                         color = colorResource(R.color.wage_card_background),
                         shape = RoundedCornerShape(8.dp)
                     )
+                    .clickable { showDatePicker = true }
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -404,5 +408,17 @@ private fun WorksiteSelectorSimple(
                 }
             }
         }
+    }
+
+    // M3：日期选择器
+    if (showDatePicker) {
+        DatePickerSheet(
+            initialDate = form.workDate,
+            onConfirm = { newDate ->
+                form = form.copy(workDate = newDate)
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false }
+        )
     }
 }
