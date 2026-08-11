@@ -42,7 +42,7 @@ jobs:
       - name: 🔧 设置 Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '8.4'  # 跟 AGP 8.1.4 匹配
+          gradle-version: '8.9'  # 跟 AGP 8.7.2 匹配
           cache-disabled: false  # 启用缓存
 
       # ===== 步骤 4：测试纯 Java 业务规则 =====
