@@ -65,6 +65,13 @@ class WageRepository(
     fun observeWorkerDetail(workerId: String): Flow<List<WageRecordWithWorker>> =
         wageRecordDao.observeByWorkerId(workerId)
 
+    /**
+     * 观察某工人在某日期的账单（M3 时间维度）
+     * WorkerDetailScreen 用：选定日期 → 该工人在该日期的所有账单
+     */
+    fun observeWorkerBillsByDate(workerId: String, workDate: LocalDate): Flow<List<WageRecordWithWorker>> =
+        wageRecordDao.observeByWorkerIdAndDate(workerId, workDate)
+
     /** 观察某日所有账单（首页按工人聚合用，V1.3 新增） */
     fun observeBillsByWorkDate(workDate: LocalDate): Flow<List<WageRecordWithWorker>> =
         wageRecordDao.observeByWorkDate(workDate)

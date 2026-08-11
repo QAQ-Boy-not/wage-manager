@@ -316,6 +316,7 @@ private fun WorkerPickerRow(
             }
         }
     }
+}  // 关闭 WorkerPickerRow 函数
 
     // ===== Bug17：新建工人对话框 =====
     if (showCreateWorkerDialog && onCreateNewWorker != null) {
@@ -352,7 +353,7 @@ private fun CreateWorkerDialog(
                     modifier = androidx.compose.ui.Modifier.fillMaxWidth()
                 )
                 if (error != null) {
-                    androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.unit.dp(4f))
+                    androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(4.dp))
                     Text(error!!, fontSize = 14.sp, color = androidx.compose.material3.MaterialTheme.colorScheme.error)
                 }
             }

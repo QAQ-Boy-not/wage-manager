@@ -53,6 +53,7 @@ import com.example.wagemanager.R
 import com.example.wagemanager.data.WageRepository
 import com.example.wagemanager.data.Worksite
 import com.example.wagemanager.ui.components.BigButton
+import com.example.wagemanager.ui.components.DatePickerSheet
 import com.example.wagemanager.util.DateRules
 import com.example.wagemanager.util.MoneyUtils
 import kotlinx.coroutines.flow.collectLatest
@@ -75,7 +76,8 @@ private data class BatchFormState(
     val isSaving: Boolean = false,
     val successMessage: String? = null,
     val showWorksitePicker: Boolean = false,
-    val showWorkerPicker: Boolean = false
+    val showWorkerPicker: Boolean = false,
+    val showDatePicker: Boolean = false  // M3
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,7 +99,8 @@ fun BatchAddBillSheet(
     var form by remember {
         mutableStateOf(
             BatchFormState(
-                selectedWorkerIds = preselectedWorkerIds
+                selectedWorkerIds = preselectedWorkerIds,
+                workDate = workDate  // M3：传入 workDate 作为初值
             )
         )
     }
@@ -162,6 +165,23 @@ fun BatchAddBillSheet(
                 color = colorResource(R.color.wage_text_primary)
             )
             Spacer(modifier = Modifier.height(4.dp))
+
+            // M3：日期选择（点击弹 DatePickerSheet）
+            Text(
+                text = "📅 ${DateRules.formatChineseDate(form.workDate)}",
+                fontSize = 16.sp,
+                color = colorResource(R.color.wage_text_primary),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = colorResource(R.color.wage_card_background),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .clickable { form = form.copy(showDatePicker = true) }
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
             WorksiteSelector(
                 worksites = worksites,
                 selectedId = form.worksiteId,
@@ -286,7 +306,7 @@ fun BatchAddBillSheet(
                     focusManager.clearFocus()
                     submitBatch(
                         repository = repository,
-                        workDate = workDate,
+                        workDate = form.workDate,  // M3：用表单里的日期（可改）
                         currentForm = form,
                         onStateChange = { form = it },
                         onSuccess = { count ->
@@ -521,5 +541,16 @@ private fun submitBatch(
                 onStateChange(currentForm.copy(successMessage = null))
             }
         }
+    }
+
+    // ===== M3：日期选择器 =====
+    if (form.showDatePicker) {
+        DatePickerSheet(
+            initialDate = form.workDate,
+            onConfirm = { newDate ->
+                form = form.copy(workDate = newDate, showDatePicker = false)
+            },
+            onDismiss = { form = form.copy(showDatePicker = false) }
+        )
     }
 }

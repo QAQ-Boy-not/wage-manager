@@ -59,6 +59,13 @@
     <string name="action_cancel">取消</string>
     <string name="action_close">关闭</string>
 
+    <!-- 日期选择器（M3 新增） -->
+    <string name="date_picker_title">选择日期</string>
+    <string name="date_picker_today">今天</string>
+    <string name="date_picker_yesterday">昨天</string>
+    <string name="date_picker_day_before">前天</string>
+    <string name="date_picker_confirm">✅ 选这个日期</string>
+
     <!-- 错误提示 -->
     <string name="error_name_required">请输入工人姓名</string>
     <string name="error_wage_required">请输入工资金额</string>

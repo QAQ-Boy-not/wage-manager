@@ -69,13 +69,14 @@ data class WorkerDetailUiState(
     val workerId: String,
     val workerName: String = "",
     val firstWorkDate: LocalDate? = null,
+    val selectedDate: LocalDate = LocalDate.now(),  // M3：选定日期
     val unpaidBills: List<BillItem> = emptyList(),
     val paidBills: List<BillItem> = emptyList(),
     val totalCount: Int = 0,
     val totalCent: Long = 0L,
     val unpaidCent: Long = 0L,
     val paidCent: Long = 0L,
-    val isPaidTab: Boolean = false,  // M2.1：Tab 切换（true = 已付）
+    val isPaidTab: Boolean = false,
     val control: DetailControlState = DetailControlState(),
     val isWorkerNotFound: Boolean = false
 ) {
@@ -103,6 +104,7 @@ class WorkerDetailViewModel(
     private val _workerInfo = MutableStateFlow<Worker?>(null)
     private val _control = MutableStateFlow(DetailControlState())
     private val _isPaidTab = MutableStateFlow(false)
+    private val _selectedDate = MutableStateFlow(LocalDate.now(clock))  // M3：选定日期
 
     private val events = Channel<WorkerDetailEvent>(Channel.BUFFERED)
     val eventFlow = events.receiveAsFlow()
@@ -113,13 +115,52 @@ class WorkerDetailViewModel(
         }
     }
 
-    // 4 个 Flow combine（5 参数版本支持）
+    fun onDateChange(date: LocalDate) {
+        _selectedDate.value = date
+    }
+
+    // 5 个 Flow combine（5 参数版本支持）
     val uiState: StateFlow<WorkerDetailUiState> = combine(
-        repository.observeWorkerDetail(workerId),
+        _selectedDate,
+        _selectedDate.flatMapLatest { date -> repository.observeWorkerBillsByDate(workerId, date) },
         _workerInfo,
         _control,
         _isPaidTab
-    ) { records, worker, control, isPaidTab ->
+    ) { date, records, worker, control, isPaidTab ->
+        val items = records.map { record ->
+            BillItem(
+                recordId = record.record.id,
+                wageCent = record.record.wageCent,
+                workDate = record.record.workDate,
+                isPaid = record.record.isPaid,
+                paidTime = record.record.paidTime,
+                createdAt = record.record.createTime,
+                worksiteName = record.worksiteName,
+                notes = record.record.notes
+            )
+        }
+        val unpaid = items.filter { !it.isPaid }
+        val paid = items.filter { it.isPaid }
+        WorkerDetailUiState(
+            workerId = workerId,
+            workerName = worker?.name ?: records.firstOrNull()?.workerName ?: "",
+            firstWorkDate = worker?.firstWorkDate,
+            unpaidBills = unpaid,
+            paidBills = paid,
+            totalCount = items.size,
+            totalCent = items.sumOf { it.wageCent },
+            unpaidCent = unpaid.sumOf { it.wageCent },
+            paidCent = paid.sumOf { it.wageCent },
+            isPaidTab = isPaidTab,
+            selectedDate = date,
+            control = control,
+            isWorkerNotFound = worker == null && records.isEmpty()
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = WorkerDetailUiState(workerId = workerId)
+    )
         val items = records.map { record ->
             BillItem(
                 recordId = record.record.id,
