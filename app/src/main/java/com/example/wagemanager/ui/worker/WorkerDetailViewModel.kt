@@ -161,39 +161,6 @@ class WorkerDetailViewModel(
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = WorkerDetailUiState(workerId = workerId)
     )
-        val items = records.map { record ->
-            BillItem(
-                recordId = record.record.id,
-                wageCent = record.record.wageCent,
-                workDate = record.record.workDate,
-                isPaid = record.record.isPaid,
-                paidTime = record.record.paidTime,
-                createdAt = record.record.createTime,
-                worksiteName = record.worksiteName,
-                notes = record.record.notes
-            )
-        }
-        val unpaid = items.filter { !it.isPaid }
-        val paid = items.filter { it.isPaid }
-        WorkerDetailUiState(
-            workerId = workerId,
-            workerName = worker?.name ?: records.firstOrNull()?.workerName ?: "",
-            firstWorkDate = worker?.firstWorkDate,
-            unpaidBills = unpaid,
-            paidBills = paid,
-            totalCount = items.size,
-            totalCent = items.sumOf { it.wageCent },
-            unpaidCent = unpaid.sumOf { it.wageCent },
-            paidCent = paid.sumOf { it.wageCent },
-            isPaidTab = isPaidTab,
-            control = control,
-            isWorkerNotFound = worker == null && records.isEmpty()
-        )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = WorkerDetailUiState(workerId = workerId)
-    )
 
     // ===== 添加 / 编辑账单 =====
 
