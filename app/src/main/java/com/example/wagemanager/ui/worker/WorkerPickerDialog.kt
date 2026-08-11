@@ -316,7 +316,7 @@ private fun WorkerPickerRow(
             }
         }
     }
-}  // 关闭 WorkerPickerRow 函数
+}
 
     // ===== Bug17：新建工人对话框 =====
     if (showCreateWorkerDialog && onCreateNewWorker != null) {
