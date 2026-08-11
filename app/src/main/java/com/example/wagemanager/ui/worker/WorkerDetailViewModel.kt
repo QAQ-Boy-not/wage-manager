@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -120,9 +121,13 @@ class WorkerDetailViewModel(
     }
 
     // 5 个 Flow combine（5 参数版本支持）
+    private val billsFlow = _selectedDate.flatMapLatest { d ->
+        repository.observeWorkerBillsByDate(workerId, d)
+    }
+
     val uiState: StateFlow<WorkerDetailUiState> = combine(
         _selectedDate,
-        _selectedDate.flatMapLatest { date -> repository.observeWorkerBillsByDate(workerId, date) },
+        billsFlow,
         _workerInfo,
         _control,
         _isPaidTab
@@ -153,39 +158,6 @@ class WorkerDetailViewModel(
             paidCent = paid.sumOf { it.wageCent },
             isPaidTab = isPaidTab,
             selectedDate = date,
-            control = control,
-            isWorkerNotFound = worker == null && records.isEmpty()
-        )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = WorkerDetailUiState(workerId = workerId)
-    )
-        val items = records.map { record ->
-            BillItem(
-                recordId = record.record.id,
-                wageCent = record.record.wageCent,
-                workDate = record.record.workDate,
-                isPaid = record.record.isPaid,
-                paidTime = record.record.paidTime,
-                createdAt = record.record.createTime,
-                worksiteName = record.worksiteName,
-                notes = record.record.notes
-            )
-        }
-        val unpaid = items.filter { !it.isPaid }
-        val paid = items.filter { it.isPaid }
-        WorkerDetailUiState(
-            workerId = workerId,
-            workerName = worker?.name ?: records.firstOrNull()?.workerName ?: "",
-            firstWorkDate = worker?.firstWorkDate,
-            unpaidBills = unpaid,
-            paidBills = paid,
-            totalCount = items.size,
-            totalCent = items.sumOf { it.wageCent },
-            unpaidCent = unpaid.sumOf { it.wageCent },
-            paidCent = paid.sumOf { it.wageCent },
-            isPaidTab = isPaidTab,
             control = control,
             isWorkerNotFound = worker == null && records.isEmpty()
         )

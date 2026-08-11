@@ -91,6 +91,9 @@ fun RegisterBillSheet(
     val wageFocusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
 
+    // M3：日期选择器（提到函数顶层，否则 ModalBottomSheet 外的 if (showDatePicker) 引用不到）
+    var showDatePicker by remember { mutableStateOf(false) }
+
     val isEditMode = editingBill != null
     val initialWageInput = editingBill?.let {
         val yuan = it.wageCent.toDouble() / 100.0
@@ -231,7 +234,6 @@ fun RegisterBillSheet(
             }
 
             // M3：日期（点击弹 DatePickerSheet）
-            var showDatePicker by remember { mutableStateOf(false) }
             Text(
                 text = stringResource(R.string.bill_field_work_date, DateRules.formatChineseDate(form.workDate)),
                 fontSize = 14.sp,
@@ -343,6 +345,18 @@ fun RegisterBillSheet(
         }
     }
 
+    // M3：日期选择器
+    if (showDatePicker) {
+        DatePickerSheet(
+            initialDate = form.workDate,
+            onConfirm = { newDate ->
+                form = form.copy(workDate = newDate)
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false }
+        )
+    }
+
     // 默认焦点在金额框
     LaunchedEffect(Unit) {
         if (!isEditMode) {
@@ -408,17 +422,5 @@ private fun WorksiteSelectorSimple(
                 }
             }
         }
-    }
-
-    // M3：日期选择器
-    if (showDatePicker) {
-        DatePickerSheet(
-            initialDate = form.workDate,
-            onConfirm = { newDate ->
-                form = form.copy(workDate = newDate)
-                showDatePicker = false
-            },
-            onDismiss = { showDatePicker = false }
-        )
     }
 }

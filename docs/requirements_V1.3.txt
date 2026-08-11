@@ -1,18 +1,21 @@
-零活工人工资管理App —— 完整开发需求文档（V1.3 决策版）
-============================================================
+零活工人工资管理App —— 完整开发需求文档（V1.3 决策版 + M3 时间维度增量）
+==================================================================
 
-⚠️ 变更摘要（相对 V1.2）
+⚠️ 变更摘要（V1.3 决策版 + 多次 M 增量）
 
-V1.3 是 V1.2 决策版基础上的**核心场景重构**，根因：
+V1.3 是 V1.2 决策版基础上的**核心场景重构 + 多次 M 增量**：
+
+**V1.3 决策版**：
 - V1.2 只建模"角色 + 订单"两层，缺了"工区"这个核心场景实体
 - 实际使用场景是"某人在某工地干活给多少钱"，工区是不可少的
 - 同名处理在 UI 上仍有"切换/改名"对话框，过于复杂
 
-主要变更（V1.3 决策版）：
+**主要变更（V1.3 决策版 + M2.0 + M2.1 + M3 累计）**：
 
 1. **新增 Worksite（工区）实体**（V1.3 关键变更）：
    - 表达"在哪干活"（小区 / 单元 / 楼层 / 房间）
    - 三实体关系：Worker 1—N WageRecord N—1 Worksite
+   - 字段最小化：name + address（V1.3 决策）
 
 2. **首页重构**：从"工人列表 + 加账单 FAB"改为"按工人聚合的今日订单"：
    - 工人卡片：未付笔数 / 总金额 + 订单缩略
@@ -22,12 +25,26 @@ V1.3 是 V1.2 决策版基础上的**核心场景重构**，根因：
 3. **批量添加订单**：
    - 一次提交为多个工人创建订单
    - 共享工区 + 金额 + 备注 + 日期
-   - 工人选择器：弹出式 Dialog（不是 BottomSheet，避免嵌套限制）+ 搜索框
+   - 工人选择器：弹出式 Dialog（不是 BottomSheet，避免嵌套限制）+ 搜索框 + "+ 新建工人" 入口
 
-4. **同名处理简化**（V1.2 → V1.3）：
+4. **同名处理简化**（V1.2 → V1.3 → M2.1）：
    - 去掉"切换/改名"对话框
    - 输入失焦 → 有同名 → 输入框标红 + 错误"已存在「X」，请改名"
    - 强制妈妈改名字才能提交
+   - M2.1 落地：详情页 +/- 走 addBillToWorker（不走同名检查）
+
+5. **去掉长按**（M2.1）：
+   - 老年用户（50 岁带班妈妈）很难发现长按操作
+   - 替换为右上角 "⋮" 图标按钮 + Dialog 操作菜单
+   - 如果非用长按不可，必须有提示文字
+
+6. **时间维度**（M3 新增）：
+   - 妈妈可登记任何一天的账（今天 / 历史 / 未来预登）
+   - 未来日期允许任意远（M3 决策）
+   - 数据库 `work_date` 字段已存在（schema 2），不用迁移
+   - 顶部"页面日期选择器"（← / 当前 / → + 点击弹 DatePickerSheet）
+   - 备注字段描述时段（"早班" / "下午" / "8点-12点"）
+   - **扫码推迟到 M5**（原 M3 旧计划）
    - 保证数据库里同名字符串全局唯一
 
 5. **长按工人项查看详情**（高级功能）：
@@ -199,7 +216,85 @@ DEVELOPMENT_GUIDELINES.md v1.0 配套使用。
 3.8 数据导出（M5，本里程碑不做）
 
 ------------------------------------------------------------
-四、交互流程详述
+## M3 实施：时间维度
+
+### M3.1 核心数据流
+
+```
+Repository.observeBillsByWorkDate(workDate: LocalDate)
+  → SELECT * FROM wage_records WHERE work_date = :workDate
+  → JOIN workers / worksites
+  → Flow<List<WageRecordWithWorker>>
+  → ViewModel 聚合 → WorkerListUiState.workerGroups
+
+Repository.observeWorkerBillsByDate(workerId, workDate)
+  → SELECT * FROM wage_records
+    WHERE worker_id = :workerId AND work_date = :workDate
+  → 详情页用：单工人在某日期的账单
+```
+
+### M3.2 页面日期选择器（DateRowSelector）
+
+**位置**：WorkerListScreen 顶部 / WorkerDetailScreen 顶部
+
+**结构**：
+```
+┌──────────────────────────────────────────┐
+│ [←]  8月9日 周六 📅  [→]                │  ← 点击当前日期弹 DatePickerSheet
+└──────────────────────────────────────────┘
+```
+
+- **← 按钮**：日期 - 1
+- **当前日期**：点击弹 DatePickerSheet（带 Material DatePicker 日历 + 快捷按钮"今天/昨天/前天"）
+- **→ 按钮**：日期 + 1
+
+### M3.3 DatePickerSheet 通用组件
+
+**路径**：`ui/components/DatePickerSheet.kt`
+
+**特性**：
+- ModalBottomSheet（含 Material DatePicker 日历）
+- 顶部：当前选中日期大字
+- 快捷按钮（今天 / 昨天 / 前天）
+- DatePicker 日历（可任意选日期，含未来）
+- 确认 / 取消按钮
+- **无 "≤ 今天" 限制**（M3 决策：未来预登允许）
+
+**复用点**：
+- WorkerListScreen 顶部
+- WorkerDetailScreen 顶部
+- RegisterBillSheet 日期输入
+- BatchAddBillSheet 日期输入
+
+### M3.4 同名关系
+
+数据库已有 `work_date` 字段（schema 2），M3 不用迁移。
+
+`WageRecordDao.observeBillsByWorkDate(workDate)` 已有，M3 复用。
+
+新增 `observeByWorkerIdAndDate(workerId, workDate)` 供详情页用。
+
+### M3.5 备注字段描述时段（不增加新字段）
+
+- 数据库已有 `notes` 字段（schema 2）
+- 时段描述写备注里："早班" / "下午" / "8-12点"
+- 不增加 work_time 或 time_period 字段
+- 减少 schema 迁移风险
+
+### M3.6 实施状态
+
+| 子任务 | 状态 |
+|---|---|
+| DatePickerSheet 通用组件 | ✅ 完成 |
+| WorkerListScreen 顶部日期选择器 | ✅ 完成 |
+| WorkerDetailScreen 顶部日期选择器 | ✅ 完成 |
+| RegisterBillSheet 日期输入 | ✅ 完成 |
+| BatchAddBillSheet 日期输入 | ✅ 完成 |
+| strings + javac + push | ✅ 完成 |
+
+---
+
+## 四、交互流程详述
 ------------------------------------------------------------
 
 4.1 首页（按工人聚合的今日未付 / 已付）
