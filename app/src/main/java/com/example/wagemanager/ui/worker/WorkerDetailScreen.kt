@@ -774,7 +774,7 @@ private fun DateRowSelector(
             )
         }
         Text(
-            text = DateRules.formatChineseDate(date) + "  📅",
+            text = DateRules.formatChineseDate(date),
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = colorResource(R.color.wage_text_primary),
