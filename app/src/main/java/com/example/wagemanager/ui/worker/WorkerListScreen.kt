@@ -94,17 +94,11 @@ fun WorkerListScreen(
                     .fillMaxSize()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                // ===== 顶部：页面名 "工人列表" + 日期选择器 + 管理按钮 =====
+                // ===== 顶部：⚙️ 管理按钮（去掉"📋 工人列表"标题，妈妈不需要页面名） =====
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "📋 工人列表",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colorResource(R.color.wage_text_primary)
-                    )
                     Spacer(modifier = Modifier.weight(1f))
                     TextButton(onClick = onManageClick) {
                         Text(
