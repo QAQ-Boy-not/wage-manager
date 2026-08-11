@@ -66,6 +66,7 @@ import java.time.LocalDate
  * 批量添加账单表单状态
  */
 private data class BatchFormState(
+    val workDate: LocalDate = LocalDate.now(),  // M3
     val worksiteId: String? = null,
     val worksiteName: String = "",
     val wageInput: String = "",
@@ -381,6 +382,17 @@ fun BatchAddBillSheet(
             onDismiss = { form = form.copy(showWorksitePicker = false) }
         )
     }
+
+    // ===== M3：日期选择器 =====
+    if (form.showDatePicker) {
+        DatePickerSheet(
+            initialDate = form.workDate,
+            onConfirm = { newDate ->
+                form = form.copy(workDate = newDate, showDatePicker = false)
+            },
+            onDismiss = { form = form.copy(showDatePicker = false) }
+        )
+    }
 }
 
 /**
@@ -521,7 +533,7 @@ private fun submitBatch(
         try {
             val count = repository.registerBills(
                 workerIds = currentForm.selectedWorkerIds.toList(),
-                worksiteId = currentForm.worksiteId,
+                worksiteId = currentForm.worksiteId!!,
                 wageCent = wage.wageCent,
                 notes = currentForm.notes.takeIf { it.isNotBlank() },
                 workDate = workDate
@@ -541,16 +553,5 @@ private fun submitBatch(
                 onStateChange(currentForm.copy(successMessage = null))
             }
         }
-    }
-
-    // ===== M3：日期选择器 =====
-    if (form.showDatePicker) {
-        DatePickerSheet(
-            initialDate = form.workDate,
-            onConfirm = { newDate ->
-                form = form.copy(workDate = newDate, showDatePicker = false)
-            },
-            onDismiss = { form = form.copy(showDatePicker = false) }
-        )
     }
 }

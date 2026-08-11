@@ -12,6 +12,7 @@
 package com.example.wagemanager.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -173,8 +174,8 @@ private fun QuickDateButton(
                 color = colorResource(R.color.wage_card_background),
                 shape = RoundedCornerShape(8.dp)
             )
-            .padding(horizontal = 4.dp)
-            .clickableSafe(onClick),
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -185,8 +186,3 @@ private fun QuickDateButton(
         )
     }
 }
-
-// 安全的 clickable（避免在某些场景下出错）
-@Composable
-private fun Modifier.clickableSafe(onClick: () -> Unit): Modifier =
-    this.then(androidx.compose.foundation.clickable(onClick = onClick))

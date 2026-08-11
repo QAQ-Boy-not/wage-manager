@@ -343,6 +343,18 @@ fun RegisterBillSheet(
         }
     }
 
+    // M3：日期选择器
+    if (showDatePicker) {
+        DatePickerSheet(
+            initialDate = form.workDate,
+            onConfirm = { newDate ->
+                form = form.copy(workDate = newDate)
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false }
+        )
+    }
+
     // 默认焦点在金额框
     LaunchedEffect(Unit) {
         if (!isEditMode) {
@@ -408,17 +420,5 @@ private fun WorksiteSelectorSimple(
                 }
             }
         }
-    }
-
-    // M3：日期选择器
-    if (showDatePicker) {
-        DatePickerSheet(
-            initialDate = form.workDate,
-            onConfirm = { newDate ->
-                form = form.copy(workDate = newDate)
-                showDatePicker = false
-            },
-            onDismiss = { showDatePicker = false }
-        )
     }
 }

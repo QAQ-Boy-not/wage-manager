@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -120,9 +121,13 @@ class WorkerDetailViewModel(
     }
 
     // 5 个 Flow combine（5 参数版本支持）
+    private val billsFlow = _selectedDate.flatMapLatest { d ->
+        repository.observeWorkerBillsByDate(workerId, d)
+    }
+
     val uiState: StateFlow<WorkerDetailUiState> = combine(
         _selectedDate,
-        _selectedDate.flatMapLatest { date -> repository.observeWorkerBillsByDate(workerId, date) },
+        billsFlow,
         _workerInfo,
         _control,
         _isPaidTab

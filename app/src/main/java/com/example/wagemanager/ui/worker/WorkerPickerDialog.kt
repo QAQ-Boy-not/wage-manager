@@ -272,6 +272,17 @@ fun WorkerPickerDialog(
             }
         }
     }
+
+    // ===== Bug17：新建工人对话框 =====
+    if (showCreateWorkerDialog && onCreateNewWorker != null) {
+        CreateWorkerDialog(
+            onConfirm = { name ->
+                onCreateNewWorker(name)
+                showCreateWorkerDialog = false
+            },
+            onDismiss = { showCreateWorkerDialog = false }
+        )
+    }
 }
 
 /**
@@ -315,17 +326,6 @@ private fun WorkerPickerRow(
                 )
             }
         }
-    }
-
-    // ===== Bug17：新建工人对话框 =====
-    if (showCreateWorkerDialog && onCreateNewWorker != null) {
-        CreateWorkerDialog(
-            onConfirm = { name ->
-                onCreateNewWorker(name)
-                showCreateWorkerDialog = false
-            },
-            onDismiss = { showCreateWorkerDialog = false }
-        )
     }
 }
 
