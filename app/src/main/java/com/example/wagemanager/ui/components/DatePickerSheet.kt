@@ -74,12 +74,13 @@ fun DatePickerSheet(
     // 用 key 强制重建 DatePickerState（material3 DatePickerState.selectedDateMillis 是 private set）
     var forceRecreateKey by remember { mutableStateOf(0) }
 
-    // 选日期的统一入口
+    // 选日期的统一入口（同时触发重建 + 自动确认关闭）
     fun selectDate(date: LocalDate) {
         if (date != tempDate) {
             tempDate = date
             forceRecreateKey++
         }
+        onConfirm(date)
     }
 
     ModalBottomSheet(
@@ -91,23 +92,9 @@ fun DatePickerSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            // 标题
-            Text(
-                text = stringResource(R.string.date_picker_title),
-                style = MaterialTheme.typography.headlineMedium
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // 当前选中日期（大字）
-            Text(
-                text = DateRules.formatChineseDate(tempDate),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = colorResource(R.color.wage_text_primary)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
             // 快捷按钮（今天 / 昨天 / 前天）
+            // M3.1 简化：去掉标题、大字、操作按钮
+            // 点快捷按钮自动 onConfirm 选日期 + 关闭弹窗
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -138,13 +125,14 @@ fun DatePickerSheet(
                         .toInstant().toEpochMilli()
                 )
 
-                // 用户手动点日历某天 → 同步回 tempDate
+                // 用户手动点日历某天 → 同步回 tempDate + 自动 onConfirm 关闭弹窗
                 LaunchedEffect(datePickerState.selectedDateMillis) {
                     val millis = datePickerState.selectedDateMillis ?: return@LaunchedEffect
                     val newDate = Instant.ofEpochMilli(millis)
                         .atZone(ZoneOffset.UTC).toLocalDate()
                     if (newDate != tempDate) {
                         tempDate = newDate
+                        onConfirm(newDate)
                     }
                 }
 
@@ -152,29 +140,9 @@ fun DatePickerSheet(
                     state = datePickerState,
                     showModeToggle = false,
                     modifier = Modifier.fillMaxWidth(),  // M3.1：日历占满 sheet 宽度
-                    headline = { }                       // M3.1：隐藏默认 headline（避免与第 102-108 行大字重复）
+                    headline = { }                       // M3.1：隐藏默认 headline
                 )
             }
-
-            // 操作按钮
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.action_cancel), fontSize = 18.sp)
-                }
-                Spacer(modifier = Modifier.padding(horizontal = 4.dp))
-                TextButton(onClick = { onConfirm(tempDate) }) {
-                    Text(
-                        text = stringResource(R.string.date_picker_confirm),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colorResource(R.color.wage_action_blue)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
