@@ -232,6 +232,45 @@ AGP 8.1.4 只兼容 Gradle 8.0-8.4。CI 默认会下最新版（Gradle 9.x），
 
 Gradle 启动时找到 SDKMAN 里的 Java 8（最低版本），会失败。必须在 .bashrc 顶部 export PATH 指向 JDK 17，或者用 `sdk default java 17.0.20-tem`。
 
+### 持久化方案（M3.2 讨论，2026-08-12）
+
+**用户需求**：不希望卸载重装/换手机后数据丢失。
+
+**Room 数据库默认行为**：
+- 覆盖安装 / 升级安装：✅ 保留（+ 自动 schema migration）
+- 卸载 / 换手机 / 恢复出厂：❌ 丢失（Android 把 /data/data/包名/ 当作 app 私有，卸载时全清）
+
+**方案组合（C + D）**：
+1. **M4.5 自动备份 DB**（App 启动时）
+   - 复制 db 到 `Android/data/com.example.wagemanager/files/backup/wage_manager.db`
+   - 覆盖最近一份备份
+   - 解决：升级安装、调试重装场景（用户无感）
+   - 解决不了：卸载重装（私有目录随 app 删除）
+
+2. **M6 CSV 导出到 Downloads**（用户主动）
+   - 设置页加按钮
+   - 用 SAF（ACTION_CREATE_DOCUMENT）选 Downloads 目录
+   - CSV 文件：`wage_manager_2026-08-12.csv`
+   - 妈妈可微信传给自己 / 邮件附件
+   - 卸载 100% 保留（Downloads 是公共目录）
+
+3. **M7 CSV 导入 + 启动检测旧备份**（恢复流程）
+   - 启动时检测私有目录 + Downloads 目录是否有 CSV 备份
+   - 提示用户"检测到旧备份，是否恢复？"
+   - 用 SAF 选 CSV 文件 → Room 写入
+
+4. **M8 云备份**（可选，超出 MVP 范围）
+   - Google Drive API（OAuth）
+   - 换手机无缝恢复
+
+**实施分阶段**：
+- M4.5：自动备份（0.5 天，立刻见效）
+- M6：CSV 导出（跟 M4.5 合并，1 天）
+- M7：CSV 导入 + 自动恢复提示（1-2 天）
+- M8：云备份（2-3 天，可选）
+
+**参考 Java 后端**：类似 `mysqldump` + 定时备份到 NAS，但 Android scoped storage 限制更严（App 私有目录 vs 公共目录）。
+
 ---
 
 ## 📌 当前进度
@@ -260,12 +299,26 @@ Gradle 启动时找到 SDKMAN 里的 Java 8（最低版本），会失败。必�
   - 备注字段描述时段（"早班"/"下午"/"8-12点"），不增加新字段
   - 未来日期允许（M3 决策：妈妈可预登明天/下周/任意远的活）
 
-📍 当前：CI 跑通中，等待真机回归验收
+- [x] **新 M3.1：DatePicker Bug 修复 + 大版本升级**
+  - Bug A：今天/昨天/前天差一天 → ZoneOffset.UTC 双向（修）
+  - Bug B："星"字表头 → 升 BOM 2026.01.01（material3 1.4.0）+ Locale.CHINA 强制（修）
+  - Bug C：周六周日错位 → DatePicker widthIn max=360dp + 居中（修）
+  - Bug D：DateRowSelector 📅 emoji 被挤压 → 删 emoji（修）
+  - 大升级：BOM 2023.10.01→2026.01.01, Kotlin 1.9.10→2.2.20, AGP 8.1.4→8.7.2,
+    Gradle 8.4→8.9, Room 2.6.1→2.7.2, compileSdk 34→35, K2 Compose Plugin
+  - 简化 DatePickerSheet：去掉标题/大字/操作按钮（点快捷按钮或日历自动确认）
+
+📍 当前：M3.1 修复完成，CI 通过，待真机回归验收
 
 🚧 接下来要做（V1.3 切片，按优先级）：
 - [ ] 1. 新 M4：历史日期 + 工人筛选 + 汇总（1-2 天）
-- [ ] 2. 新 M5：ML Kit 扫码 + 图片存储（2-3 天）
-- [ ] 3. 新 M6：CSV 导出 + 清空工资（1-2 天）
+- [ ] 2. 新 M4.5：持久化方案（M3.2 讨论 2026-08-12）
+  - App 启动时自动备份 DB 到 App 私有目录（覆盖安装/调试重装不丢）
+  - CSV 导出到 Downloads（用户主动备份，卸载重装/换手机 100% 保留）
+- [ ] 3. 新 M5：ML Kit 扫码 + 图片存储（2-3 天）
+- [ ] 4. 新 M6：CSV 导出 + 清空工资（1-2 天）—— 跟 M4.5 合并实现
+- [ ] 5. 新 M7：CSV 导入 + 启动检测旧备份提示恢复（1-2 天）
+- [ ] 6. 新 M8：云备份（Google Drive OAuth，超出 MVP 范围，可选）
 ```
 
 ---
