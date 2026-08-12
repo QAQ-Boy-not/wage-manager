@@ -1,5 +1,15 @@
 // 项目级 build.gradle
 // 作用：声明所有子模块要用到的插件版本（这里只声明，不应用）
+
+// 显式锁 R8 版本（覆盖 AGP 8.7.2 自带 R8 8.7.18）
+// AGP 8.7.2 内置的 R8 8.7.18 处理 Kotlin 2.2 K2 metadata 时抛 "Should never be called"
+// 升级到 R8 8.12.30（AGP 8.7.x 时代发布的稳定 R8，修复 K2 metadata 兼容性 bug）
+buildscript {
+    dependencies {
+        classpath("com.android.tools:r8:8.12.30")
+    }
+}
+
 plugins {
     id 'com.android.application' version '8.7.2' apply false
     id 'org.jetbrains.kotlin.android' version '2.2.20' apply false
