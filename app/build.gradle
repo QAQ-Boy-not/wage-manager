@@ -101,7 +101,8 @@ dependencies {
     implementation 'androidx.compose.material3:material3'
 
     // Room 数据库（KSP 注解处理）
-    def roomVersion = '2.6.1'
+    // M3.1 升级到 2.7.2（Kotlin 2.x 时代稳定版，修复跟 K2 compiler 的 jvm signature 兼容性）
+    def roomVersion = '2.7.2'
     implementation "androidx.room:room-runtime:$roomVersion"
     implementation "androidx.room:room-ktx:$roomVersion"
     ksp "androidx.room:room-compiler:$roomVersion"
