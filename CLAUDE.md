@@ -382,8 +382,18 @@ AI 看到这份文档后，请：
 
 ---
 
-**文档版本**：v2.5
-**最后更新**：2026-08-11
+**文档版本**：v2.6
+**最后更新**：2026-08-12
+
+### v2.6 (2026-08-12)
+
+**重大变更：M3.1 修复 + 持久化方案**
+
+- **M3.1 DatePicker Bug 全部修复**：今天/昨天/前天差一天（Bug A）→ ZoneOffset.UTC；"星"字表头（Bug B）→ 升 BOM 2026.01.01（material3 1.4.0）+ 强制 Locale.CHINA；周六周日错位（Bug C）→ widthIn max=360dp + 居中；DateRowSelector 📅 emoji 被挤（Bug D）→ 删 emoji
+- **大版本升级**：BOM 2023.10.01→2026.01.01, Kotlin 1.9.10→2.2.20, AGP 8.1.4→8.7.2, Gradle 8.4→8.9, Room 2.6.1→2.7.2, compileSdk 34→35, K2 Compose Plugin（Kotlin 2.0+ 不再需要手动对齐 composeOptions）
+- **DatePickerSheet 简化**：去掉标题/大字/操作按钮，点快捷按钮或日历选日期自动确认关闭
+- **持久化方案（M3.2 讨论）**：M4.5 自动备份 DB + M6 CSV 导出 + M7 CSV 导入 + M8 云备份（可选）
+- **milestone 重排**：M4（历史日期+筛选+汇总），M4.5（持久化），M5（扫码），M6（CSV 导出+清空），M7（CSV 导入），M8（云备份，可选）
 
 ### v2.5 (2026-08-11)
 
