@@ -7,14 +7,22 @@
 // 1. Application 是 Context 最先可用的地方，Room.databaseBuilder 必须用 applicationContext
 //    避免内存泄漏（Activity Context 持有数据库会让 Activity 无法被 GC）
 // 2. repository 依赖 database，单 database 已经够用
+// 3. M3.1：强制 Locale.CHINA，避免 Compose DatePicker weekday 表头 fallback 到英文/数字
 
 package com.example.wagemanager
 
 import android.app.Application
 import com.example.wagemanager.data.AppDatabase
 import com.example.wagemanager.data.WageRepository
+import java.util.Locale
 
 class WageManagerApplication : Application() {
+
+    override fun onCreate() {
+        super.onCreate()
+        // 强制 java.util.Locale 默认值为中文，影响 java.time.DateTimeFormatter 等 API
+        Locale.setDefault(Locale.CHINA)
+    }
 
     val database: AppDatabase by lazy {
         AppDatabase.getInstance(this)
