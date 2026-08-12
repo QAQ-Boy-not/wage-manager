@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DatePicker
@@ -139,8 +140,10 @@ fun DatePickerSheet(
                 DatePicker(
                     state = datePickerState,
                     showModeToggle = false,
-                    modifier = Modifier.fillMaxWidth(),  // M3.1：日历占满 sheet 宽度
-                    headline = { }                       // M3.1：隐藏默认 headline
+                    modifier = Modifier
+                        .widthIn(max = 360.dp)            // M3.1：限制最大宽度（避免 fillMaxWidth 拉伸变形）
+                        .align(Alignment.CenterHorizontally), // M3.1：宽屏时居中显示
+                    headline = { }                          // M3.1：隐藏默认 headline
                 )
             }
         }
