@@ -13,7 +13,9 @@ android {
     namespace 'com.example.wagemanager'
 
     // 编译时用的 Android SDK 版本
-    compileSdk 34
+    // M3.1 升级到 35：BOM 2026.01.01 / material3 1.4.0 / Compose UI 1.10.2 要求 compileSdk ≥ 35
+    // compileSdk 只影响编译期 API 可用性，不影响 targetSdk 和 minSdk（妈妈手机 Android 7+ 还能装）
+    compileSdk 35
 
     defaultConfig {
         // 应用唯一标识（发布到应用商店时的 ID）
