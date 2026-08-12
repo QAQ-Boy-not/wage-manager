@@ -4,17 +4,16 @@
 // 用户点击当前日期 → 弹这个 BottomSheet → 选日期 → 回调
 //
 // 设计要点：
-// - ModalBottomSheet（含 Material DatePicker 日历）
+// - ModalBottomSheet（含 Material3 DatePicker 日历）
 // - 顶部：当前选中日期大字 + 快捷按钮（今天 / 昨天 / 前天）
-// - 中部：自定义单字星期表头（一二三四五六日，通过 weekdays slot 注入 DatePicker）
+// - 中部：DatePicker（material3 1.4.0+，预期 weekday 表头显示'一二三四五六日'而非'星'）
 // - 底部：[✅ 选这个日期] [取消]
 //
 // M3.1 修复：
 // - A：时区偏移 → atStartOfDay / atZone 一律用 ZoneOffset.UTC（双向 LocalDate ↔ millis）
-// - B/C：DatePicker 自带 weekday 表头显示"星" → 用 BOM 2025.04.00 / material3 1.3.2
-//        新增的 weekdays slot 整体替换默认表头
-// - 删 key(forceRecreateKey) hack → 用 BOM 1.3.0+ 公开的 selectDate() method
-// - 删 LaunchedEffect 同步 → state 是唯一真相源，selectDate() 后自然同步
+// - B："星"字问题：升 BOM 2026.01.01 / material3 1.4.0 修复（不再用外置 WeekdayHeader）
+// - 不使用 selectDate() method 或 weekdays slot（material3 1.4.0 是否有未确认）
+// - 快捷按钮用 key(forceRecreateKey) 重建 DatePickerState（兼容所有 BOM 版本）
 
 package com.example.wagemanager.ui.components
 
@@ -38,12 +37,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.wagemanager.R
@@ -54,10 +58,6 @@ import java.time.ZoneOffset
 
 /**
  * 通用日期选择 BottomSheet（M3 新增 + M3.1 修复）
- *
- * @param initialDate 初始显示的日期
- * @param onConfirm 用户选完日期点确认（返回选中的日期）
- * @param onDismiss 关闭选择器
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,23 +68,18 @@ fun DatePickerSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // BOM 2025.04.00 / material3 1.3.2 公开了 selectDate() method
-    // state 是唯一真相源，selectedDateMillis 变化后 UI 自动更新
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = initialDate.atStartOfDay(ZoneOffset.UTC)
-            .toInstant().toEpochMilli()
-    )
+    // tempDate：用户当前选中的日期
+    var tempDate by remember { mutableStateOf(initialDate) }
 
-    // 从 state 推导"当前选中日期"（避免冗余 var）
-    val tempDate: LocalDate = datePickerState.selectedDateMillis?.let {
-        Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()
-    } ?: initialDate
+    // 用 key 强制重建 DatePickerState（material3 DatePickerState.selectedDateMillis 是 private set）
+    var forceRecreateKey by remember { mutableStateOf(0) }
 
-    // 选日期的统一入口（用 material3 1.3.0+ 新增的公开方法 selectDate）
+    // 选日期的统一入口
     fun selectDate(date: LocalDate) {
-        datePickerState.selectDate(
-            date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        )
+        if (date != tempDate) {
+            tempDate = date
+            forceRecreateKey++
+        }
     }
 
     ModalBottomSheet(
@@ -135,12 +130,29 @@ fun DatePickerSheet(
             }
             Spacer(modifier = Modifier.height(12.dp))
 
-            // DatePicker 日历（weekdays slot 整体替换默认表头，根治 Bug B/C）
-            DatePicker(
-                state = datePickerState,
-                showModeToggle = false,
-                weekdays = { WeekdayHeader() }
-            )
+            // DatePicker 日历（material3 1.4.0 basic API，让 1.4.0 自己渲染 weekday 表头）
+            // key 包住，快捷按钮触发重建以更新选中日期
+            key(forceRecreateKey) {
+                val datePickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = tempDate.atStartOfDay(ZoneOffset.UTC)
+                        .toInstant().toEpochMilli()
+                )
+
+                // 用户手动点日历某天 → 同步回 tempDate
+                LaunchedEffect(datePickerState.selectedDateMillis) {
+                    val millis = datePickerState.selectedDateMillis ?: return@LaunchedEffect
+                    val newDate = Instant.ofEpochMilli(millis)
+                        .atZone(ZoneOffset.UTC).toLocalDate()
+                    if (newDate != tempDate) {
+                        tempDate = newDate
+                    }
+                }
+
+                DatePicker(
+                    state = datePickerState,
+                    showModeToggle = false
+                )
+            }
 
             // 操作按钮
             Row(
@@ -188,31 +200,5 @@ private fun QuickDateButton(
             fontWeight = FontWeight.Bold,
             color = colorResource(R.color.wage_action_blue)
         )
-    }
-}
-
-/**
- * 自定义单字星期表头（一二三四五六日）
- *
- * 通过 BOM 2025.04.00 / material3 1.3.2 新增的 weekdays slot 注入 DatePicker。
- * slot 内部和 day cell 共享同一布局容器，天然对齐，整体替换默认 weekday 表头。
- */
-@Composable
-private fun WeekdayHeader() {
-    val weekdays = listOf("一", "二", "三", "四", "五", "六", "日")
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        weekdays.forEach { day ->
-            Text(
-                text = day,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = colorResource(R.color.wage_text_primary),
-                modifier = Modifier.weight(1f),
-                textAlign = TextAlign.Center
-            )
-        }
     }
 }
