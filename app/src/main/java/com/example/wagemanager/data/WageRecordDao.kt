@@ -74,6 +74,27 @@ internal interface WageRecordDao {
     fun observeByWorkDate(workDate: LocalDate): Flow<List<WageRecordWithWorker>>
 
     /**
+     * 观察所有工资记录（带工人 + 工区信息），按日期倒序。
+     * 用于 M4 管理页订单 Tab（订单总览）。
+     */
+    @Query(
+        """
+        SELECT
+            wage_records.*,
+            workers.name AS worker_name,
+            workers.qrcode_path AS worker_qrcode_path,
+            worksites.name AS worksite_name
+        FROM wage_records
+        INNER JOIN workers
+            ON workers.id = wage_records.worker_id
+        LEFT JOIN worksites
+            ON worksites.id = wage_records.worksite_id
+        ORDER BY wage_records.work_date DESC, wage_records.create_time DESC, wage_records.id DESC
+        """
+    )
+    fun observeAllWithWorker(): Flow<List<WageRecordWithWorker>>
+
+    /**
      * 按 id 查单条记录（带工人信息）。
      */
     @Query(

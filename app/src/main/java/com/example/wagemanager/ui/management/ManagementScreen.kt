@@ -134,7 +134,10 @@ fun ManagementScreen(
                 ManagementTab.WORKSITE -> WorksiteListTab(
                     repository = repository
                 )
-                ManagementTab.ORDER -> OrderListTab()
+                ManagementTab.ORDER -> OrderListTab(
+                    repository = repository,
+                    onOrderClick = onWorkerClick
+                )
             }
         }
     }
@@ -318,19 +321,145 @@ private fun WorksiteListTab(
     }
 }
 
-// ============== 订单 Tab（骨架，M4 完善） ==============
+// ============== 订单 Tab（M4 完善：带筛选的账单列表） ==============
 
 @Composable
-private fun OrderListTab() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "订单 Tab 待 M4 实现\n（先做工人 / 工区）",
-            fontSize = 18.sp,
-            color = Color.Gray
+private fun OrderListTab(
+    repository: WageRepository,
+    onOrderClick: (String) -> Unit
+) {
+    var isPaidTab by remember { mutableStateOf<Boolean?>(null) } // null = 全部
+    var allBills by remember { mutableStateOf<List<com.example.wagemanager.data.WageRecordWithWorker>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        repository.observeAllBills().collect { allBills = it }
+    }
+
+    val visibleBills = allBills.filter { bill ->
+        when (isPaidTab) {
+            null -> true      // 全部
+            true -> bill.record.isPaid   // 已付
+            false -> !bill.record.isPaid  // 未付
+        }
+    }
+
+    val unpaidCount = allBills.count { !it.record.isPaid }
+    val paidCount = allBills.count { it.record.isPaid }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // 筛选 Tab：[未付] [已付] [全部]
+        TabRow(
+            selectedTabIndex = when (isPaidTab) {
+                false -> 0
+                true -> 1
+                null -> 2
+            }
+        ) {
+            Tab(
+                selected = isPaidTab == false,
+                onClick = { isPaidTab = false },
+                text = { Text("🔴 未付 ($unpaidCount)", fontSize = 14.sp) }
+            )
+            Tab(
+                selected = isPaidTab == true,
+                onClick = { isPaidTab = true },
+                text = { Text("🟢 已付 ($paidCount)", fontSize = 14.sp) }
+            )
+            Tab(
+                selected = isPaidTab == null,
+                onClick = { isPaidTab = null },
+                text = { Text("全部 (${allBills.size})", fontSize = 14.sp) }
+            )
+        }
+
+        // 账单列表
+        if (visibleBills.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(top = 48.dp),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Text(
+                    text = when (isPaidTab) {
+                        false -> "没有未付账单 ✅"
+                        true -> "没有已付账单"
+                        null -> "还没有账单\n回到首页添加"
+                    },
+                    fontSize = 18.sp,
+                    color = Color.Gray
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(visibleBills, key = { it.record.id }) { billWithWorker ->
+                    OrderBillCard(
+                        bill = billWithWorker,
+                        onClick = { onOrderClick(billWithWorker.record.workerId) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OrderBillCard(
+    bill: com.example.wagemanager.data.WageRecordWithWorker,
+    onClick: () -> Unit
+) {
+    val amountColor = if (bill.record.isPaid) R.color.wage_paid_green else R.color.wage_unpaid_red
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = colorResource(R.color.wage_card_background)
         )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 左侧：日期 + 工人
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = DateRules.formatChineseDate(bill.record.workDate),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "👤 ${bill.workerName}",
+                    fontSize = 14.sp,
+                    color = colorResource(R.color.wage_text_primary)
+                )
+                if (!bill.worksiteName.isNullOrBlank() || !bill.record.notes.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = listOfNotNull(
+                            bill.worksiteName?.let { "📍 $it" },
+                            bill.record.notes?.takeIf { it.isNotBlank() }?.let { "📝 $it" }
+                        ).joinToString(" "),
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+            // 右侧：金额
+            Text(
+                text = "${if (bill.record.isPaid) "🟢" else "🔴"} ${MoneyUtils.formatCent(bill.record.wageCent)}",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = colorResource(amountColor)
+            )
+        }
     }
 }
 
