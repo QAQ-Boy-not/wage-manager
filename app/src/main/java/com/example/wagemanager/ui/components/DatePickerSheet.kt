@@ -150,7 +150,9 @@ fun DatePickerSheet(
 
                 DatePicker(
                     state = datePickerState,
-                    showModeToggle = false
+                    showModeToggle = false,
+                    modifier = Modifier.fillMaxWidth(),  // M3.1：日历占满 sheet 宽度
+                    headline = { }                       // M3.1：隐藏默认 headline（避免与第 102-108 行大字重复）
                 )
             }
 
