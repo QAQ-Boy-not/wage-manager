@@ -308,15 +308,37 @@ Gradle 启动时找到 SDKMAN 里的 Java 8（最低版本），会失败。必�
     Gradle 8.4→8.9, Room 2.6.1→2.7.2, compileSdk 34→35, K2 Compose Plugin
   - 简化 DatePickerSheet：去掉标题/大字/操作按钮（点快捷按钮或日历自动确认）
 
-📍 当前：M3.1 修复完成，CI 通过，待真机回归验收
+- [x] **新 M4：订单 Tab + BillCard 重做 + BottomSheet 滚动修复**
+  - 订单 Tab：带筛选（未付/已付/全部）的账单列表
+  - BillCard 重写：3 个操作按钮直接在卡片底部一行（不要 ⋮ 弹窗）
+  - RegisterBillSheet + BatchAddBillSheet 加 verticalScroll 修最后一行挤压
+  - DatePickerSheet 极简化（去掉 DatePicker，只保留 3 个快捷按钮）
+
+- [x] **新 M4.5：自动备份（持久化 A 已完成）**
+  - 新增 BackupManager（util/）：backupToPrivate / hasBackup / restoreFromPrivate
+  - WageManagerApplication.onCreate 自动备份到 filesDir/backup/wage_manager.db
+  - 解决：升级安装、调试重装、进程被杀后的恢复
+
+📍 当前：M4.5 完成，B+C（CSV 导出/导入）暂缓
 
 🚧 接下来要做（V1.3 切片，按优先级）：
-- [ ] 1. 新 M4：历史日期 + 工人筛选 + 汇总（1-2 天）
-- [ ] 2. 新 M4.5：持久化方案（M3.2 讨论 2026-08-12）
-  - App 启动时自动备份 DB 到 App 私有目录（覆盖安装/调试重装不丢）
-  - CSV 导出到 Downloads（用户主动备份，卸载重装/换手机 100% 保留）
-- [ ] 3. 新 M5：ML Kit 扫码 + 图片存储（2-3 天）
-- [ ] 4. 新 M6：CSV 导出 + 清空工资（1-2 天）—— 跟 M4.5 合并实现
+- [ ] 1. 新 M5：ML Kit 扫码 + 图片存储（2-3 天）
+- [ ] 2. 新 M6：清空工资功能（1 天，独立做不依赖 CSV）
+- [ ] 3. 新 M7：CSV 导出 + 启动检测恢复（**代办**：手机短期不变，暂缓）
+
+📋 CSV 持久化代办决策（M4.5 讨论 2026-08-24）：
+- M4.5 已实现 A 自动备份（filesDir/backup/wage_manager.db）
+- M6/M7 CSV 导出 + 导入推迟，触发条件：
+  - 妈妈换新手机
+  - 真发生卸载丢数据
+  - 妈妈主动要求"想要换手机也能恢复"
+- 决策日期：2026-08-24（用户："手机短期不会发生变化"）
+- 实现细节见文档：见"持久化方案"章节 + 备份文件路径 + 触发时机
+
+🚧 代办（不紧急）：
+- [ ] M6：CSV 导出到 Downloads（跟 M7 一起做）
+- [ ] M7：CSV 导入 + 启动检测旧备份提示恢复（跟 M6 一起做）
+- [ ] M8：云备份（Google Drive OAuth，可选）
 - [ ] 5. 新 M7：CSV 导入 + 启动检测旧备份提示恢复（1-2 天）
 - [ ] 6. 新 M8：云备份（Google Drive OAuth，超出 MVP 范围，可选）
 ```
