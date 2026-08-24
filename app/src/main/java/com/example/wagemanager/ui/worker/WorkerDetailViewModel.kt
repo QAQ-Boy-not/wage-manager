@@ -58,7 +58,6 @@ sealed interface PendingConfirmAction {
  */
 data class DetailControlState(
     val isRegisterSheetVisible: Boolean = false,
-    val actionMenuRecordId: Long? = null,
     val pendingConfirmAction: PendingConfirmAction? = null,
     val editingBillId: Long? = null
 )
@@ -184,19 +183,10 @@ class WorkerDetailViewModel(
         _control.value = _control.value.copy(isRegisterSheetVisible = false)
     }
 
-    // ===== 操作菜单（长按账单） =====
+    // ===== 操作按钮直接在 BillCard 上，不再用 ⋮ 弹窗 =====
 
-    fun onActionMenuShow(recordId: Long) {
-        _control.value = _control.value.copy(actionMenuRecordId = recordId)
-    }
-
-    fun onActionMenuDismiss() {
-        _control.value = _control.value.copy(actionMenuRecordId = null)
-    }
-
-    fun onActionMenuEdit(recordId: Long) {
+    fun onBillEdit(recordId: Long) {
         _control.value = _control.value.copy(
-            actionMenuRecordId = null,
             editingBillId = recordId,
             isRegisterSheetVisible = true
         )
@@ -236,7 +226,6 @@ class WorkerDetailViewModel(
     /** UI 层调用：把待确认操作 push 到 control */
     fun setPendingAction(action: PendingConfirmAction) {
         _control.value = _control.value.copy(
-            actionMenuRecordId = null,
             pendingConfirmAction = action
         )
     }

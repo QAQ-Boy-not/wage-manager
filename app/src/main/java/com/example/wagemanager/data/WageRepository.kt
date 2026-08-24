@@ -76,6 +76,13 @@ class WageRepository(
     fun observeBillsByWorkDate(workDate: LocalDate): Flow<List<WageRecordWithWorker>> =
         wageRecordDao.observeByWorkDate(workDate)
 
+    /**
+     * 观察所有工资记录（带工人 + 工区信息），按日期倒序。
+     * M4 管理页订单 Tab 用。
+     */
+    fun observeAllBills(): Flow<List<WageRecordWithWorker>> =
+        wageRecordDao.observeAllWithWorker()
+
     /** 按 id 查工人 */
     suspend fun findWorkerById(workerId: String): Worker? =
         workerDao.findById(workerId)
