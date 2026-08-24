@@ -29,6 +29,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -143,7 +144,7 @@ fun ManagementScreen(
     }
 }
 
-// ============== 工人 Tab ==============
+// ============== 工人 Tab（M4：搜索 + 编辑 + 删除）==============
 
 @Composable
 private fun WorkerListTab(
@@ -151,16 +152,38 @@ private fun WorkerListTab(
     onWorkerClick: (String) -> Unit
 ) {
     var showAdd by remember { mutableStateOf(false) }
+    var editingWorker by remember { mutableStateOf<Worker?>(null) }
+    var pendingDelete by remember { mutableStateOf<Worker?>(null) }
     var liveWorkers by remember { mutableStateOf<List<Worker>>(emptyList()) }
+    var searchQuery by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
+    // 加载 + 过滤（按姓名 / first_work_date 搜索）
     LaunchedEffect(Unit) {
+        repository.listAllWorkers()
+    }
+    val refreshTrigger = remember { mutableStateOf(0) }
+    LaunchedEffect(refreshTrigger.value) {
         liveWorkers = repository.listAllWorkers()
     }
 
+    val visibleWorkers = if (searchQuery.isBlank()) liveWorkers
+    else liveWorkers.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            if (liveWorkers.isEmpty()) {
+            // 搜索框
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("搜索工人姓名…", fontSize = 16.sp) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                singleLine = true
+            )
+
+            if (visibleWorkers.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -168,7 +191,8 @@ private fun WorkerListTab(
                     contentAlignment = Alignment.TopCenter
                 ) {
                     Text(
-                        text = "还没有工人\n点右下角 ➕ 新增",
+                        text = if (liveWorkers.isEmpty()) "还没有工人\n点右下角 ➕ 新增"
+                        else "没有匹配的工人",
                         fontSize = 18.sp,
                         color = Color.Gray
                     )
@@ -177,14 +201,12 @@ private fun WorkerListTab(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(liveWorkers, key = { it.id }) { worker ->
+                    items(visibleWorkers, key = { it.id }) { worker ->
                         Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onWorkerClick(worker.id) },
+                            modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
                                 containerColor = colorResource(R.color.wage_card_background)
                             )
@@ -195,18 +217,46 @@ private fun WorkerListTab(
                                     .padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "👤 ${worker.name}",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                if (worker.firstWorkDate != null) {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = DateRules.formatChineseDate(worker.firstWorkDate),
-                                        fontSize = 14.sp,
-                                        color = Color.Gray
+                                        text = "👤 ${worker.name}",
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
+                                    if (worker.firstWorkDate != null) {
+                                        Text(
+                                            text = "首次：${DateRules.formatChineseDate(worker.firstWorkDate)}",
+                                            fontSize = 12.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+                                // "..." 菜单按钮：查看 / 编辑 / 删除
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clickable { onWorkerClick(worker.id) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("查看", fontSize = 14.sp, color = colorResource(R.color.wage_action_blue))
+                                }
+                                Spacer(modifier = Modifier.size(4.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clickable { editingWorker = worker },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("编辑", fontSize = 14.sp, color = colorResource(R.color.wage_action_blue))
+                                }
+                                Spacer(modifier = Modifier.size(4.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clickable { pendingDelete = worker },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("删除", fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
                                 }
                             }
                         }
@@ -226,76 +276,220 @@ private fun WorkerListTab(
         }
     }
 
+    // 新增
     if (showAdd) {
         AddWorkerSheet(
             repository = repository,
             onDismiss = { showAdd = false },
             onSaved = {
                 showAdd = false
-                scope.launch { liveWorkers = repository.listAllWorkers() }
+                refreshTrigger.value++
+            }
+        )
+    }
+
+    // 编辑
+    if (editingWorker != null) {
+        EditWorkerSheet(
+            repository = repository,
+            worker = editingWorker!!,
+            onDismiss = { editingWorker = null },
+            onSaved = {
+                editingWorker = null
+                refreshTrigger.value++
+            }
+        )
+    }
+
+    // 删除二次确认
+    if (pendingDelete != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("删除工人？", fontSize = 22.sp) },
+            text = {
+                Text(
+                    "确认删除「${pendingDelete!!.name}」？\n该工人的所有账单也会一并删除。",
+                    fontSize = 18.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        repository.deleteWorker(pendingDelete!!.id)
+                        refreshTrigger.value++
+                    }
+                    pendingDelete = null
+                }) {
+                    Text(
+                        "删除",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text("取消", fontSize = 18.sp)
+                }
             }
         )
     }
 }
 
-// ============== 工区 Tab ==============
+// 编辑工人 BottomSheet
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditWorkerSheet(
+    repository: WageRepository,
+    worker: Worker,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var name by remember { mutableStateOf(worker.name) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(modifier = Modifier.padding(24.dp)) {
+            Text("编辑工人", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(16.dp))
+            TextField(
+                value = name,
+                onValueChange = { name = it; error = null },
+                label = { Text("工人姓名") },
+                isError = error != null,
+                supportingText = { error?.let { Text(it) } },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            androidx.compose.material3.Button(
+                onClick = {
+                    val trimmed = name.trim()
+                    if (trimmed.isEmpty()) {
+                        error = "姓名不能为空"
+                        return@Button
+                    }
+                    if (trimmed == worker.name) {
+                        // 名字没变，直接关闭
+                        onSaved()
+                        return@Button
+                    }
+                    scope.launch {
+                        try {
+                            repository.updateWorker(worker.copy(name = trimmed))
+                            onSaved()
+                        } catch (e: Exception) {
+                            error = e.message ?: "保存失败"
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp)
+            ) {
+                Text("✅ 保存", fontSize = 20.sp)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+// ============== 工区 Tab（M4：搜索 + 编辑 + 删除）==============
 
 @Composable
 private fun WorksiteListTab(
     repository: WageRepository
 ) {
     var showAdd by remember { mutableStateOf(false) }
+    var editingWorksite by remember { mutableStateOf<Worksite?>(null) }
+    var pendingDelete by remember { mutableStateOf<Worksite?>(null) }
     var liveWorksites by remember { mutableStateOf<List<Worksite>>(emptyList()) }
+    var searchQuery by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        repository.observeWorksites().collect {
-            liveWorksites = it
-        }
+        repository.observeWorksites().collect { liveWorksites = it }
+    }
+
+    // 按 name 或 address 搜索
+    val visibleWorksites = if (searchQuery.isBlank()) liveWorksites
+    else liveWorksites.filter {
+        it.name.contains(searchQuery.trim(), ignoreCase = true) ||
+        it.address.contains(searchQuery.trim(), ignoreCase = true)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (liveWorksites.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(top = 48.dp),
-                contentAlignment = Alignment.TopCenter
-            ) {
-                Text(
-                    text = "还没有工区\n点右下角 ➕ 新增",
-                    fontSize = 18.sp,
-                    color = Color.Gray
-                )
-            }
-        } else {
-            LazyColumn(
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 搜索框
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("搜索工区名 / 地址…", fontSize = 16.sp) },
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(liveWorksites, key = { it.id }) { ws ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = colorResource(R.color.wage_card_background)
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
+                singleLine = true
+            )
+
+            if (visibleWorksites.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(top = 48.dp),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Text(
+                        text = if (liveWorksites.isEmpty()) "还没有工区\n点右下角 ➕ 新增"
+                        else "没有匹配的工区",
+                        fontSize = 18.sp,
+                        color = Color.Gray
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(visibleWorksites, key = { it.id }) { ws ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = colorResource(R.color.wage_card_background)
+                            )
                         ) {
-                            Text(
-                                text = "📍 ${ws.name}",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = ws.address,
-                                fontSize = 14.sp,
-                                color = Color.Gray
-                            )
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "📍 ${ws.name}",
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = "编辑",
+                                        fontSize = 14.sp,
+                                        color = colorResource(R.color.wage_action_blue),
+                                        modifier = Modifier
+                                            .clickable { editingWorksite = ws }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                    Text(
+                                        text = "删除",
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier
+                                            .clickable { pendingDelete = ws }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(text = ws.address, fontSize = 14.sp, color = Color.Gray)
+                            }
                         }
                     }
                 }
@@ -318,6 +512,123 @@ private fun WorksiteListTab(
             repository = repository,
             onDismiss = { showAdd = false }
         )
+    }
+
+    // 编辑工区
+    if (editingWorksite != null) {
+        EditWorksiteSheet(
+            repository = repository,
+            worksite = editingWorksite!!,
+            onDismiss = { editingWorksite = null },
+            onSaved = { editingWorksite = null }
+        )
+    }
+
+    // 删除二次确认
+    if (pendingDelete != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("删除工区？", fontSize = 22.sp) },
+            text = {
+                Text(
+                    "确认删除「${pendingDelete!!.name}」？\n关联账单的工区引用会被清空（账单本身保留）。",
+                    fontSize = 18.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        repository.deleteWorksite(pendingDelete!!.id)
+                    }
+                    pendingDelete = null
+                }) {
+                    Text(
+                        "删除",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text("取消", fontSize = 18.sp)
+                }
+            }
+        )
+    }
+}
+
+// 编辑工区 BottomSheet
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditWorksiteSheet(
+    repository: WageRepository,
+    worksite: Worksite,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var name by remember { mutableStateOf(worksite.name) }
+    var address by remember { mutableStateOf(worksite.address) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(modifier = Modifier.padding(24.dp)) {
+            Text("编辑工区", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(16.dp))
+            TextField(
+                value = name,
+                onValueChange = { name = it; error = null },
+                label = { Text("工区名称") },
+                isError = error != null,
+                supportingText = { error?.let { Text(it) } },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            TextField(
+                value = address,
+                onValueChange = { address = it; error = null },
+                label = { Text("详细地址") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            androidx.compose.material3.Button(
+                onClick = {
+                    if (name.isBlank() || address.isBlank()) {
+                        error = "名称和地址都不能为空"
+                        return@Button
+                    }
+                    if (name == worksite.name && address == worksite.address) {
+                        onSaved()
+                        return@Button
+                    }
+                    scope.launch {
+                        try {
+                            repository.updateWorksite(worksite.copy(name = name.trim(), address = address.trim()))
+                            onSaved()
+                        } catch (e: Exception) {
+                            error = e.message ?: "保存失败"
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp)
+            ) {
+                Text("✅ 保存", fontSize = 20.sp)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
     }
 }
 
