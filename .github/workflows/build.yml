@@ -42,6 +42,15 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      # ===== 步骤 2.5：恢复 debug keystore（保证 CI 签名一致）=====
+      # 不恢复会导致每次 CI build 生成新的 keystore，签名哈希不同
+      # 装新 APK 时 Android 报"软件包与现有软件包存在冲突"
+      - name: 🔑 恢复 debug keystore
+        run: |
+          mkdir -p ~/.android
+          echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/debug.keystore
+          ls -la ~/.android/debug.keystore
+
       # ===== 步骤 3：装 Gradle =====
       # 必须固定 Gradle 版本到 8.x，不能用默认最新（默认会下 9.x，跟我们的 AGP 8.1.4 不兼容）
       - name: 🔧 设置 Gradle
