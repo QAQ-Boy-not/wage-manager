@@ -149,9 +149,7 @@ class WageRepository(
         val normalizedName = name.trim()
         require(normalizedName.isNotEmpty()) { "工人姓名不能为空" }
         require(wageCent > 0) { "工资金额必须 > 0" }
-        require(DateRules.isWorkDateAllowed(workDate, LocalDate.now(clock))) {
-            "出工日期不能晚于今天"
-        }
+        // M3.2：允许未来日期（妈妈可预登任意远的活）
 
         // V1.3 强制改名：≥1 同名抛异常
         val existing = workerDao.findByExactName(normalizedName)
@@ -203,9 +201,7 @@ class WageRepository(
         notes: String? = null
     ): Long {
         require(wageCent > 0) { "工资金额必须 > 0" }
-        require(DateRules.isWorkDateAllowed(workDate, LocalDate.now(clock))) {
-            "出工日期不能晚于今天"
-        }
+        // M3.2：允许未来日期（妈妈可预登任意远的活）
 
         // 校验 worker 存在（防御性，正常不会触发）
         workerDao.findById(workerId)
@@ -249,9 +245,7 @@ class WageRepository(
     ): Int {
         require(workerIds.isNotEmpty()) { "至少选一个工人" }
         require(wageCent > 0) { "工资金额必须 > 0" }
-        require(DateRules.isWorkDateAllowed(workDate, LocalDate.now(clock))) {
-            "出工日期不能晚于今天"
-        }
+        // M3.2：允许未来日期（妈妈可预登任意远的活）
 
         return database.withTransaction {
             val now = LocalDateTime.now(clock).withNano(0)

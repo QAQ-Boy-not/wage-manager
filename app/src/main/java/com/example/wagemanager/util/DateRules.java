@@ -1,9 +1,12 @@
 // DateRules.java - 出工日期规则与中文格式化
 //
 // 设计要点：
-// 1. 出工日期不允许晚于"今天"（未来日期拒绝）
-// 2. 格式化统一用 DateTimeFormatter + Locale.CHINA，不硬编码"年月日星期"
-// 3. 纯 Java，可 javac 测试
+// 1. 格式化统一用 DateTimeFormatter + Locale.CHINA，不硬编码"年月日星期"
+// 2. 纯 Java，可 javac 测试
+//
+// 历史：之前有 isWorkDateAllowed(workDate, today) 限制"出工日期不能晚于今天"，
+// 但跟 M3 决策矛盾（M3 允许预登任意远的活），已在 M3.2 删除。
+// WageRepository 也不再 require 这个检查。
 
 package com.example.wagemanager.util;
 
@@ -19,17 +22,6 @@ public final class DateRules {
 
     private DateRules() {
         // 工具类不允许实例化
-    }
-
-    /**
-     * 判断出工日期是否允许登记。
-     * 规则：work_date ≤ today（不允许未来日期）。
-     */
-    public static boolean isWorkDateAllowed(LocalDate workDate, LocalDate today) {
-        if (workDate == null || today == null) {
-            return false;
-        }
-        return !workDate.isAfter(today);
     }
 
     /**
