@@ -196,8 +196,15 @@ fun WorkerDetailScreen(
                                                 )
                                             }
                                         } else null,
-                                        onMenuClick = {
-                                            viewModel.onActionMenuShow(bill.recordId)
+                                        onEditClick = { viewModel.onBillEdit(bill.recordId) },
+                                        onDeleteClick = {
+                                            viewModel.setPendingAction(
+                                                PendingConfirmAction.DeleteRecord(
+                                                    recordId = bill.recordId,
+                                                    workerName = state.workerName,
+                                                    wageCent = bill.wageCent
+                                                )
+                                            )
                                         }
                                     )
                                 }
@@ -254,40 +261,6 @@ fun WorkerDetailScreen(
             },
             onDismiss = { showDatePicker = false }
         )
-    }
-
-    // ===== 操作菜单（长按账单） =====
-    val menuRecordId = state.control.actionMenuRecordId
-    if (menuRecordId != null) {
-        val menuBill = state.findBillById(menuRecordId)
-        if (menuBill != null) {
-            BillActionMenuDialog(
-                bill = menuBill,
-                onEdit = { viewModel.onActionMenuEdit(menuBill.recordId) },
-                onMarkPaid = {
-                    viewModel.setPendingAction(
-                        PendingConfirmAction.MarkPaid(
-                            menuBill.recordId, state.workerName, menuBill.wageCent
-                        )
-                    )
-                },
-                onRevoke = {
-                    viewModel.setPendingAction(
-                        PendingConfirmAction.RevokePayment(
-                            menuBill.recordId, state.workerName
-                        )
-                    )
-                },
-                onDelete = {
-                    viewModel.setPendingAction(
-                        PendingConfirmAction.DeleteRecord(
-                            menuBill.recordId, state.workerName, menuBill.wageCent
-                        )
-                    )
-                },
-                onDismiss = viewModel::onActionMenuDismiss
-            )
-        }
     }
 
     // ===== 二次确认对话框 =====
@@ -481,196 +454,138 @@ private fun BillCard(
     workerName: String,
     onMarkPaidClick: (() -> Unit)?,
     onRevokeClick: (() -> Unit)?,
-    onMenuClick: () -> Unit
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = colorResource(R.color.wage_card_background)
         ),
         shape = RoundedCornerShape(8.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(12.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            // 顶部：账单信息（日期 + 工人 + 工区 + 备注 + 金额 + paidAt）
+            Text(
+                text = DateRules.formatChineseDate(bill.workDate),
+                fontSize = 14.sp,
+                color = colorResource(R.color.wage_text_primary)
+            )
+            if (!bill.worksiteName.isNullOrBlank()) {
                 Text(
-                    text = DateRules.formatChineseDate(bill.workDate),
-                    fontSize = 14.sp,
+                    text = "📍 ${bill.worksiteName}",
+                    fontSize = 13.sp,
+                    color = Color.Gray
+                )
+            }
+            if (!bill.notes.isNullOrBlank()) {
+                Text(
+                    text = bill.notes,
+                    fontSize = 13.sp,
                     color = colorResource(R.color.wage_text_primary)
                 )
-                if (!bill.worksiteName.isNullOrBlank()) {
-                    Text(
-                        text = "📍 ${bill.worksiteName}",
-                        fontSize = 13.sp,
-                        color = Color.Gray
-                    )
-                }
-                if (!bill.notes.isNullOrBlank()) {
-                    Text(
-                        text = bill.notes,
-                        fontSize = 13.sp,
-                        color = colorResource(R.color.wage_text_primary)
-                    )
-                }
-                Text(
-                    text = MoneyUtils.formatCent(bill.wageCent) + " 元",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colorResource(
-                        if (bill.isPaid) R.color.wage_paid_green
-                        else R.color.wage_unpaid_red
-                    )
+            }
+            Text(
+                text = MoneyUtils.formatCent(bill.wageCent) + " 元",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = colorResource(
+                    if (bill.isPaid) R.color.wage_paid_green
+                    else R.color.wage_unpaid_red
                 )
-                if (bill.isPaid && bill.paidTime != null) {
-                    Text(
-                        text = stringResource(
-                            R.string.detail_paid_at,
-                            PaymentRules.formatPaidTime(bill.paidTime)
-                        ),
-                        fontSize = 12.sp,
-                        color = Color.Gray
-                    )
-                }
+            )
+            if (bill.isPaid && bill.paidTime != null) {
+                Text(
+                    text = stringResource(
+                        R.string.detail_paid_at,
+                        PaymentRules.formatPaidTime(bill.paidTime)
+                    ),
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
             }
 
-            // 右侧：操作按钮 + "..." 菜单按钮（垂直布局）
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            // 分隔线
+            Spacer(modifier = Modifier.height(8.dp))
+            androidx.compose.material3.HorizontalDivider()
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 底部：3 个操作按钮（标记已付/撤销 + 编辑 + 删除）等宽横排
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // 标记已付 / 撤销 按钮
+                // 标记已付 / 撤销
                 when {
                     !bill.isPaid && onMarkPaidClick != null -> {
-                        ActionButton(
+                        BillActionButton(
                             text = stringResource(R.string.action_mark_paid),
                             bgColor = colorResource(R.color.wage_paid_green),
-                            onClick = onMarkPaidClick
+                            onClick = onMarkPaidClick,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                     bill.isPaid && onRevokeClick != null -> {
-                        ActionButton(
+                        BillActionButton(
                             text = stringResource(R.string.action_revoke_short),
                             bgColor = colorResource(R.color.wage_unpaid_red),
-                            onClick = onRevokeClick
+                            onClick = onRevokeClick,
+                            modifier = Modifier.weight(1f)
                         )
                     }
+                    else -> {
+                        // 占位空 Spacer（保持等宽对齐）
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                 }
-
-                // "..." 菜单按钮（替代长按，老年用户可见）
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clickable(onClick = onMenuClick),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "⋮",
-                        fontSize = 24.sp,
-                        color = colorResource(R.color.wage_disabled_gray)
-                    )
-                }
+                // 编辑
+                BillActionButton(
+                    text = stringResource(R.string.action_edit_bill),
+                    bgColor = colorResource(R.color.wage_action_blue),
+                    onClick = onEditClick,
+                    modifier = Modifier.weight(1f)
+                )
+                // 删除
+                BillActionButton(
+                    text = stringResource(R.string.action_delete_record),
+                    bgColor = MaterialTheme.colorScheme.error,
+                    onClick = onDeleteClick,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
 }
 
 /**
- * 操作按钮（标记已付 / 撤销）—— 通用样式
+ * 账单操作按钮（标记已付/撤销 + 编辑 + 删除）—— 通用样式
  */
 @Composable
-private fun ActionButton(text: String, bgColor: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+private fun BillActionButton(
+    text: String,
+    bgColor: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .background(color = bgColor, shape = RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = 4.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            fontSize = 18.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = Color.White,
+            maxLines = 1
         )
     }
-}
-
-/**
- * 操作菜单（长按账单弹出）
- *
- * 未付账单：[✏️ 编辑] [🗑️ 删除记录]
- * 已付账单：[↩️ 撤销付款] [🗑️ 删除记录]
- */
-@Composable
-private fun BillActionMenuDialog(
-    bill: BillItem,
-    onEdit: () -> Unit,
-    onMarkPaid: () -> Unit,
-    onRevoke: () -> Unit,
-    onDelete: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = stringResource(R.string.dialog_action_menu_title, bill.workDate.toString()),
-                fontSize = 22.sp
-            )
-        },
-        text = {
-            Text(
-                text = stringResource(R.string.dialog_action_menu_message),
-                fontSize = 18.sp
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    when {
-                        !bill.isPaid -> onMarkPaid()
-                        else -> onRevoke()
-                    }
-                }
-            ) {
-                Text(
-                    text = stringResource(
-                        if (!bill.isPaid) R.string.action_mark_paid
-                        else R.string.action_revoke_payment
-                    ),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colorResource(R.color.wage_paid_green)
-                )
-            }
-        },
-        dismissButton = {
-            Column {
-                if (!bill.isPaid) {
-                    TextButton(onClick = onEdit) {
-                        Text(
-                            text = stringResource(R.string.action_edit_bill),
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = colorResource(R.color.wage_action_blue)
-                        )
-                    }
-                }
-                TextButton(onClick = onDelete) {
-                    Text(
-                        text = stringResource(R.string.action_delete_record),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-        }
-    )
 }
 
 /**
