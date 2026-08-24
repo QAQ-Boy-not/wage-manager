@@ -14,6 +14,7 @@ package com.example.wagemanager
 import android.app.Application
 import com.example.wagemanager.data.AppDatabase
 import com.example.wagemanager.data.WageRepository
+import com.example.wagemanager.util.BackupManager
 import java.util.Locale
 
 class WageManagerApplication : Application() {
@@ -22,6 +23,10 @@ class WageManagerApplication : Application() {
         super.onCreate()
         // 强制 java.util.Locale 默认值为中文，影响 java.time.DateTimeFormatter 等 API
         Locale.setDefault(Locale.CHINA)
+        // M4.5：启动时自动备份 db 到 filesDir/backup/wage_manager.db
+        // 解决：升级安装 / 调试重装 / 进程被杀后的恢复
+        // 不解决：卸载（私有目录随 app 删除）→ M6 CSV 导出到 Downloads 解决
+        BackupManager.backupToPrivate(this)
     }
 
     val database: AppDatabase by lazy {
