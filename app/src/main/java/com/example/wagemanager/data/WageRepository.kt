@@ -149,9 +149,7 @@ class WageRepository(
         val normalizedName = name.trim()
         require(normalizedName.isNotEmpty()) { "工人姓名不能为空" }
         require(wageCent > 0) { "工资金额必须 > 0" }
-        require(DateRules.isWorkDateAllowed(workDate, LocalDate.now(clock))) {
-            "出工日期不能晚于今天"
-        }
+        // M3.2：允许未来日期（妈妈可预登任意远的活）
 
         // V1.3 强制改名：≥1 同名抛异常
         val existing = workerDao.findByExactName(normalizedName)
@@ -203,9 +201,7 @@ class WageRepository(
         notes: String? = null
     ): Long {
         require(wageCent > 0) { "工资金额必须 > 0" }
-        require(DateRules.isWorkDateAllowed(workDate, LocalDate.now(clock))) {
-            "出工日期不能晚于今天"
-        }
+        // M3.2：允许未来日期（妈妈可预登任意远的活）
 
         // 校验 worker 存在（防御性，正常不会触发）
         workerDao.findById(workerId)
@@ -249,9 +245,7 @@ class WageRepository(
     ): Int {
         require(workerIds.isNotEmpty()) { "至少选一个工人" }
         require(wageCent > 0) { "工资金额必须 > 0" }
-        require(DateRules.isWorkDateAllowed(workDate, LocalDate.now(clock))) {
-            "出工日期不能晚于今天"
-        }
+        // M3.2：允许未来日期（妈妈可预登任意远的活）
 
         return database.withTransaction {
             val now = LocalDateTime.now(clock).withNano(0)
@@ -331,6 +325,48 @@ class WageRepository(
 
     suspend fun findRecordById(recordId: Long): WageRecordWithWorker? {
         return wageRecordDao.findById(recordId)
+    }
+
+    // ============== M4：编辑/删除工人 ==============
+
+    /**
+     * 编辑工人（M4 用户反馈：管理界面需要编辑工人）。
+     */
+    suspend fun updateWorker(worker: Worker) {
+        workerDao.update(worker)
+    }
+
+    /**
+     * 删除工人（M4 用户反馈：管理界面需要删除工人）。
+     * 事务化：先删关联 wage_records（外键 NO_ACTION），再删 worker。
+     */
+    suspend fun deleteWorker(workerId: String): Boolean {
+        return database.withTransaction {
+            wageRecordDao.deleteByWorkerId(workerId)
+            val rows = workerDao.deleteById(workerId)
+            rows > 0
+        }
+    }
+
+    // ============== M4：编辑/删除工区 ==============
+
+    /**
+     * 编辑工区（M4 用户反馈：管理界面需要编辑工区）。
+     */
+    suspend fun updateWorksite(worksite: Worksite) {
+        worksiteDao.update(worksite)
+    }
+
+    /**
+     * 删除工区（M4 用户反馈：管理界面需要删除工区）。
+     * 事务化：先清空 wage_records.worksite_id 引用（保留账单），再删 worksite。
+     */
+    suspend fun deleteWorksite(worksiteId: String): Boolean {
+        return database.withTransaction {
+            wageRecordDao.clearWorksiteReference(worksiteId)
+            val rows = worksiteDao.deleteById(worksiteId)
+            rows > 0
+        }
     }
 }
 

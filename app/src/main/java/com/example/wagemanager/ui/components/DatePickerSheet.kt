@@ -1,13 +1,17 @@
-// DatePickerSheet.kt - 极简版（M4 用户反馈：去掉 DatePicker）
+// DatePickerSheet.kt - 通用日期选择器（V1.3 M3 + M3.1 + M4 用户反馈调整）
 //
 // 设计要点：
-// - ModalBottomSheet 弹窗 + 3 个快捷按钮 Row（今天/昨天/前天）
-// - 不再有 DatePicker 日历（用户反馈：快捷按钮下空白不必要）
-// - 点任意按钮 → 自动 onConfirm + 关闭弹窗
-// - 点弹窗外面 → onDismiss 取消
+// - ModalBottomSheet（含 Material3 DatePicker 日历）
+// - 顶部：3 个快捷按钮（今天 / 昨天 / 前天）
+// - 中部：DatePicker（material3 1.4.0+，显示中文 weekday）
+// - 点击快捷按钮或日历某天 → 自动 onConfirm + 关闭弹窗
 //
-// 权衡：失去选任意日期的能力。妈妈只能选今天/昨天/前天。
-// 这是 M4 用户明确决策：极简优先，不需要任意日期选择。
+// M4.1 调整：
+// - 恢复 DatePicker（之前 e8dc76d 删掉是过度简化）
+// - 快捷按钮 + 日历双重入口：今天等用快捷，其他用日历
+//
+// Bug A：时区偏移 → atStartOfDay / atZone 一律用 ZoneOffset.UTC（双向 LocalDate ↔ millis）
+// Bug B/C：DatePicker 自带 weekday 表头 → material3 1.4.0 渲染中文（一二三四五六日）
 
 package com.example.wagemanager.ui.components
 
@@ -21,14 +25,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DatePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,23 +50,41 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.wagemanager.R
+import com.example.wagemanager.util.DateRules
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 
 /**
- * 通用日期选择 BottomSheet（M3 新增 + M3.1 修复 + M4 极简化）
+ * 通用日期选择 BottomSheet（M3 + M3.1 + M4.1）
  *
- * @param initialDate 初始显示的日期（保留用于将来扩展）
+ * @param initialDate 初始显示的日期
  * @param onConfirm 用户选完日期点确认（返回选中的日期）
  * @param onDismiss 关闭选择器
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DatePickerSheet(
-    @Suppress("UNUSED_PARAMETER") initialDate: LocalDate,  // 保留参数兼容调用方
+    initialDate: LocalDate,
     onConfirm: (LocalDate) -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // tempDate：用户当前选中的日期
+    var tempDate by remember { mutableStateOf(initialDate) }
+
+    // 用 key 强制重建 DatePickerState（material3 1.4.0 DatePickerState.selectedDateMillis 是 private set）
+    var forceRecreateKey by remember { mutableStateOf(0) }
+
+    // 选日期的统一入口：更新 tempDate + 触发 DatePicker 重建 + 自动确认关闭
+    fun selectDate(date: LocalDate) {
+        if (date != tempDate) {
+            tempDate = date
+            forceRecreateKey++
+        }
+        onConfirm(date)
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -65,28 +93,66 @@ fun DatePickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            // 仅 3 个快捷按钮：今天 / 昨天 / 前天
-            // M4 极简：去掉 DatePicker（用户反馈空白不必要）
+            // ===== 顶部：3 个快捷按钮（今天 / 昨天 / 前天）=====
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 QuickDateButton(
                     label = stringResource(R.string.date_picker_today),
-                    onClick = { onConfirm(LocalDate.now()) },
+                    onClick = { selectDate(LocalDate.now()) },
                     modifier = Modifier.weight(1f)
                 )
                 QuickDateButton(
                     label = stringResource(R.string.date_picker_yesterday),
-                    onClick = { onConfirm(LocalDate.now().minusDays(1)) },
+                    onClick = { selectDate(LocalDate.now().minusDays(1)) },
                     modifier = Modifier.weight(1f)
                 )
                 QuickDateButton(
                     label = stringResource(R.string.date_picker_day_before),
-                    onClick = { onConfirm(LocalDate.now().minusDays(2)) },
+                    onClick = { selectDate(LocalDate.now().minusDays(2)) },
                     modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ===== 中部：DatePicker 日历（material3 1.4.0）=====
+            // key 包住，快捷按钮触发重建以更新选中日期
+            key(forceRecreateKey) {
+                val datePickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = tempDate.atStartOfDay(ZoneOffset.UTC)
+                        .toInstant().toEpochMilli()
+                )
+
+                // 用户手动点日历某天 → 同步回 tempDate + 自动 onConfirm 关闭弹窗
+                LaunchedEffect(datePickerState.selectedDateMillis) {
+                    val millis = datePickerState.selectedDateMillis ?: return@LaunchedEffect
+                    val newDate = Instant.ofEpochMilli(millis)
+                        .atZone(ZoneOffset.UTC).toLocalDate()
+                    if (newDate != tempDate) {
+                        tempDate = newDate
+                        onConfirm(newDate)
+                    }
+                }
+
+                DatePicker(
+                    state = datePickerState,
+                    showModeToggle = false,
+                    modifier = Modifier
+                        .widthIn(max = 360.dp)
+                        .align(Alignment.CenterHorizontally),
+                    headline = {
+                        // M4.1：显示当前选中的日期（中文格式）
+                        Text(
+                            text = "当前选择：${DateRules.formatChineseDate(tempDate)}",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colorResource(R.color.wage_text_primary),
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                        )
+                    }
                 )
             }
         }

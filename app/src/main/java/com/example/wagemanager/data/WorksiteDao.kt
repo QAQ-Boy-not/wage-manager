@@ -10,6 +10,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -45,4 +46,17 @@ internal interface WorksiteDao {
         """
     )
     suspend fun findByExactName(name: String): List<Worksite>
+
+    /**
+     * 按主键删除工区（M4 用户反馈：管理界面需要编辑/删除工区）。
+     * 注意：WageRecord 外键 NO_ACTION，调用方需先清空关联账单的 worksite_id（设 null）。
+     */
+    @Query("DELETE FROM worksites WHERE id = :worksiteId")
+    suspend fun deleteById(worksiteId: String): Int
+
+    /**
+     * 按主键更新工区（M4 用户反馈：管理界面编辑工区）。
+     */
+    @Update
+    suspend fun update(worksite: Worksite)
 }
