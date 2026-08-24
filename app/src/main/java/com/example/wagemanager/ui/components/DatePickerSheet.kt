@@ -143,7 +143,16 @@ fun DatePickerSheet(
                     modifier = Modifier
                         .widthIn(max = 360.dp)
                         .align(Alignment.CenterHorizontally),
-                    headline = { }
+                    headline = {
+                        // M4.1：显示当前选中的日期（中文格式）
+                        Text(
+                            text = "当前选择：${DateRules.formatChineseDate(tempDate)}",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colorResource(R.color.wage_text_primary),
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                        )
+                    }
                 )
             }
         }
