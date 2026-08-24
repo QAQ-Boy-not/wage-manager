@@ -8,9 +8,11 @@
 package com.example.wagemanager.data
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 
 @Dao
 internal interface WorkerDao {
@@ -52,4 +54,17 @@ internal interface WorkerDao {
         """
     )
     suspend fun findAll(): List<Worker>
+
+    /**
+     * 按主键删除工人（M4 用户反馈：管理界面需要编辑/删除工人）。
+     * 注意：WageRecord 外键 NO_ACTION，调用方需先删除关联账单。
+     */
+    @Query("DELETE FROM workers WHERE id = :workerId")
+    suspend fun deleteById(workerId: String): Int
+
+    /**
+     * 按主键更新工人（M4 用户反馈：管理界面编辑工人）。
+     */
+    @Update
+    suspend fun update(worker: Worker)
 }

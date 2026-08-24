@@ -326,6 +326,48 @@ class WageRepository(
     suspend fun findRecordById(recordId: Long): WageRecordWithWorker? {
         return wageRecordDao.findById(recordId)
     }
+
+    // ============== M4：编辑/删除工人 ==============
+
+    /**
+     * 编辑工人（M4 用户反馈：管理界面需要编辑工人）。
+     */
+    suspend fun updateWorker(worker: Worker) {
+        workerDao.update(worker)
+    }
+
+    /**
+     * 删除工人（M4 用户反馈：管理界面需要删除工人）。
+     * 事务化：先删关联 wage_records（外键 NO_ACTION），再删 worker。
+     */
+    suspend fun deleteWorker(workerId: String): Boolean {
+        return database.withTransaction {
+            wageRecordDao.deleteByWorkerId(workerId)
+            val rows = workerDao.deleteById(workerId)
+            rows > 0
+        }
+    }
+
+    // ============== M4：编辑/删除工区 ==============
+
+    /**
+     * 编辑工区（M4 用户反馈：管理界面需要编辑工区）。
+     */
+    suspend fun updateWorksite(worksite: Worksite) {
+        worksiteDao.update(worksite)
+    }
+
+    /**
+     * 删除工区（M4 用户反馈：管理界面需要删除工区）。
+     * 事务化：先清空 wage_records.worksite_id 引用（保留账单），再删 worksite。
+     */
+    suspend fun deleteWorksite(worksiteId: String): Boolean {
+        return database.withTransaction {
+            wageRecordDao.clearWorksiteReference(worksiteId)
+            val rows = worksiteDao.deleteById(worksiteId)
+            rows > 0
+        }
+    }
 }
 
 /**

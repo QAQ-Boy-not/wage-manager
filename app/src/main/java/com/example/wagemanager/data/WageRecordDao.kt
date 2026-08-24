@@ -251,6 +251,20 @@ internal interface WageRecordDao {
         """
     )
     suspend fun deleteById(recordId: Long): Int
+
+    /**
+     * 删除某工人的所有工资记录（M4：删除工人前清理）。
+     * 返回删除的行数。
+     */
+    @Query("DELETE FROM wage_records WHERE worker_id = :workerId")
+    suspend fun deleteByWorkerId(workerId: String): Int
+
+    /**
+     * 清空某工区在工资记录中的引用（M4：删除工区前清理，保留账单）。
+     * 把关联账单的 worksite_id 设为 NULL（账单本身保留）。
+     */
+    @Query("UPDATE wage_records SET worksite_id = NULL WHERE worksite_id = :worksiteId")
+    suspend fun clearWorksiteReference(worksiteId: String): Int
 }
 
 /**
