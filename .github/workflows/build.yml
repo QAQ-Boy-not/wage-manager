@@ -25,6 +25,11 @@ jobs:
     # 用 Ubuntu 最新版（云端免费）
     runs-on: ubuntu-latest
 
+    # versionCode 自动递增：每次 CI 跑 +1（Gradle 端 +2 让起点=3，避免低版本覆盖旧的 versionCode=2 APK）
+    # GitHub Actions 表达式不支持算术操作符，所以加法在 Gradle 端做
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+
     steps:
       # ===== 步骤 1：下载代码 =====
       - name: 📥 检出代码
