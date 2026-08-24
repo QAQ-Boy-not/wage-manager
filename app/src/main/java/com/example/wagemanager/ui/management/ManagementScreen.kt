@@ -9,6 +9,10 @@
 
 package com.example.wagemanager.ui.management
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -48,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -405,6 +410,7 @@ private fun EditWorkerSheet(
 private fun WorksiteListTab(
     repository: WageRepository
 ) {
+    val context = LocalContext.current
     var showAdd by remember { mutableStateOf(false) }
     var editingWorksite by remember { mutableStateOf<Worksite?>(null) }
     var pendingDelete by remember { mutableStateOf<Worksite?>(null) }
@@ -469,6 +475,16 @@ private fun WorksiteListTab(
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = "复制",
+                                        fontSize = 14.sp,
+                                        color = colorResource(R.color.wage_action_blue),
+                                        modifier = Modifier
+                                            .clickable {
+                                                copyToClipboard(context, ws.address)
+                                            }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
                                     )
                                     Text(
                                         text = "编辑",
@@ -897,4 +913,14 @@ private fun AddWorksiteSheet(
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
+}
+/**
+ * 复制文本到系统剪贴板，弹 Toast 提示
+ * （M4 用户反馈：复制地址到粘贴板，可快捷发送给别人）
+ */
+private fun copyToClipboard(context: Context, text: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val clip = ClipData.newPlainText("worksite_address", text)
+    clipboard.setPrimaryClip(clip)
+    Toast.makeText(context, "已复制地址", Toast.LENGTH_SHORT).show()
 }
